@@ -1,0 +1,89 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+
+enum Status {
+  Active
+  Inactive
+}
+
+model User {
+  id                 Int                  @id @default(autoincrement())
+  displayName        String               @db.VarChar(225)
+  firstName          String               @db.VarChar(225)
+  lastName           String               @db.VarChar(225)
+  email                 String?         @unique
+  isSelfLogin        Boolean?
+   
+  password                    String       @db.VarChar(255)
+  emailVerified               Boolean?      @default(false)
+  phoneVerified               Boolean?      @default(false)
+  createdAt                   DateTime     @default(now()) @db.Timestamp(0)
+  updatedAt                   DateTime     @default(now()) @updatedAt @db.Timestamp(0)
+  status                      Status       @default(Active)
+  rolePermission     Json?
+  profileImage String  @default("uploads/default.jpg")
+   
+  userType           String               @db.VarChar(225)          
+   resetOTPExpiresAt  DateTime?   
+   resetOTP   String?
+
+      verificationc1     Verification[]     @relation("verificationc1")
+}
+
+model Verification {
+  id               Int      @id @default(autoincrement())
+  userId           Int
+  user             User     @relation("verificationc1",fields: [userId], references: [id], onDelete: Cascade) 
+  verificationType String   // 'email' or 'phone'
+  verificationCode String   @db.VarChar(6)   // OTP code
+  expiresAt        DateTime // OTP expiration timestamp
+  createdAt        DateTime @default(now()) @db.Timestamp(0)
+
+  @@index([userId])
+}
+
+model RoleModules {
+  roleId      Int
+  moduleId    Int
+  view        Boolean   @default(false)
+  add         Boolean   @default(false)
+  edit        Boolean   @default(false)
+  delete      Boolean   @default(false)
+
+  module      Module    @relation(fields: [moduleId], references: [id])
+  userRoles        UserRole  @relation(fields: [roleId], references: [id], name:"UserRoleRelation", map: "UserRole_role_fkey")
+  
+  @@id([roleId, moduleId]) // Composite primary key
+}
+
+model UserRole {
+  id          Int       @id @default(autoincrement())
+  roleName    String    @unique @db.VarChar(255)
+  description String?   @db.Text
+  modules     RoleModules[]   @relation("UserRoleRelation", map: "UserRole_role_fkey")
+  createdAt   DateTime  @default(now()) @db.Timestamp(0)
+  updatedAt   DateTime  @default(now()) @updatedAt @db.Timestamp(0)
+}
+
+model Module {
+  id          Int        @id @default(autoincrement())
+  moduleName  String     @unique @db.VarChar(255)
+  status      Status     @default(Active)
+  allPerimission  Boolean   @default(false)
+  roles       RoleModules[]
+  createdAt   DateTime   @default(now()) @db.Timestamp(0)
+  updatedAt   DateTime   @default(now()) @updatedAt @db.Timestamp(0)
+}
+
+
+
+
+
