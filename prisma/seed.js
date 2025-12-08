@@ -19,12 +19,10 @@ async function main() {
         });
     }
 
-
     // Define roles
     const roles = [
         { roleName: 'SuperAdministrator', description: 'Full control to configure and manage application' },
         { roleName: 'Administrator', description: 'Full control to configure and manage application' },
-
     ];
 
     // Upsert roles
@@ -36,6 +34,7 @@ async function main() {
         });
     }
 
+    // Get SuperAdministrator role
     const adminRole = await prisma.userRole.findUnique({
         where: { roleName: 'SuperAdministrator' },
     });
@@ -72,13 +71,11 @@ async function main() {
 
     // Upsert admin user
     const adminUser = {
-        displayName: 'SuperAdmin',
         firstName: 'Admin',
-        userType: 'SuperAdmin',
         lastName: 'One',
         email: 'admin@gmail.com',
-        isSelfLogin: true,
         password: hashedPassword,
+        roleId: adminRole.id,   // ✅ Set SuperAdministrator roleId
         emailVerified: true,
         phoneVerified: false,
         status: 'Active',

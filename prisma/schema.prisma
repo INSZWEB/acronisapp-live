@@ -14,29 +14,7 @@ enum Status {
   Inactive
 }
 
-model User {
-  id                 Int                  @id @default(autoincrement())
-  displayName        String               @db.VarChar(225)
-  firstName          String               @db.VarChar(225)
-  lastName           String               @db.VarChar(225)
-  email                 String?         @unique
-  isSelfLogin        Boolean?
-   
-  password                    String       @db.VarChar(255)
-  emailVerified               Boolean?      @default(false)
-  phoneVerified               Boolean?      @default(false)
-  createdAt                   DateTime     @default(now()) @db.Timestamp(0)
-  updatedAt                   DateTime     @default(now()) @updatedAt @db.Timestamp(0)
-  status                      Status       @default(Active)
-  rolePermission     Json?
-  profileImage String  @default("uploads/default.jpg")
-   
-  userType           String               @db.VarChar(225)          
-   resetOTPExpiresAt  DateTime?   
-   resetOTP   String?
 
-      verificationc1     Verification[]     @relation("verificationc1")
-}
 
 model Verification {
   id               Int      @id @default(autoincrement())
@@ -71,6 +49,8 @@ model UserRole {
   modules     RoleModules[]   @relation("UserRoleRelation", map: "UserRole_role_fkey")
   createdAt   DateTime  @default(now()) @db.Timestamp(0)
   updatedAt   DateTime  @default(now()) @updatedAt @db.Timestamp(0)
+
+  user_roles     User[]     @relation("user_roles")
 }
 
 model Module {
@@ -81,6 +61,32 @@ model Module {
   roles       RoleModules[]
   createdAt   DateTime   @default(now()) @db.Timestamp(0)
   updatedAt   DateTime   @default(now()) @updatedAt @db.Timestamp(0)
+}
+
+model User {
+  id                 Int                  @id @default(autoincrement())
+  firstName          String               @db.VarChar(225)
+  lastName           String               @db.VarChar(225)
+  email                 String?         @unique
+  mobile                 String?       
+  isSelfLogin        Boolean?
+  tempPassword        Boolean?      @default(true)
+   
+  password                    String       @db.VarChar(255)
+  emailVerified               Boolean?      @default(false)
+  phoneVerified               Boolean?      @default(false)
+  createdAt                   DateTime     @default(now()) @db.Timestamp(0)
+  updatedAt                   DateTime     @default(now()) @updatedAt @db.Timestamp(0)
+  status                      Status       @default(Active)
+  profileImage String  @default("uploads/default.jpg")
+   
+roleId Int?
+roles  UserRole? @relation("user_roles", fields: [roleId], references: [id])
+
+   resetOTPExpiresAt  DateTime?   
+   resetOTP   String?
+
+      verificationc1     Verification[]     @relation("verificationc1")
 }
 
 
