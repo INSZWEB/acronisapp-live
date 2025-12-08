@@ -60,11 +60,11 @@ const authController = {
             }
 
             // --- Check if user has permission to login ---
-            if (!user.isSelfLogin) {
-                return res
-                    .status(STATUS_CODES.FORBIDDEN)
-                    .json({ error: ERROR_MESSAGES.NO_PERMISSION_TO_LOGIN });
-            }
+            // if (!user.isSelfLogin) {
+            //     return res
+            //         .status(STATUS_CODES.FORBIDDEN)
+            //         .json({ error: ERROR_MESSAGES.NO_PERMISSION_TO_LOGIN });
+            // }
 
             // --- Check account status ---
             if (user.status !== "Active") {
@@ -142,6 +142,7 @@ const authController = {
                     branchId: user.branchId,
                     userType: user.roles.roleName,   // <-- FINAL USER TYPE
                     rolePermission: formattedPermissions,
+                    tempPassword: user.tempPassword
                 },
             });
 
@@ -236,6 +237,51 @@ const authController = {
                     id: user.id
                 },
                 data: { password: hashedNewPassword }
+            });
+
+            res.status(STATUS_CODES.OK).json({ message: ERROR_MESSAGES.PASSWORD_UPDATE_SUCCESS });
+
+        } catch (error) {
+            res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+        }
+    },
+    newPassword: async (req, res) => {
+        try {
+            const { currentPassword, newPassword, confirmNewPassword,userId } = req.body;
+
+
+            // Check if newPassword and confirmNewPassword match
+            if (newPassword !== confirmNewPassword) {
+                return res.status(STATUS_CODES.BAD_REQUEST).json({ error: ERROR_MESSAGES.PASSWORDS_DO_NOT_MATCH });
+            }
+
+            // Fetch user from database
+            const user = await prisma.user.findUnique({
+                where: {
+                    id: parseInt(userId)
+                }
+            });
+
+
+            if (!user) {
+                return res.status(STATUS_CODES.NOT_FOUND).json({ error: ERROR_MESSAGES.USER_NOT_FOUND });
+            }
+
+            // Compare current password with the stored password
+            const match = await bcrypt.compare(currentPassword, user.password);
+
+
+            if (!match) {
+                return res.status(STATUS_CODES.UNAUTHORIZED).json({ error: ERROR_MESSAGES.INVALID_CURRENT_PASSWORD });
+            }
+
+            // Hash the new password and update it in the database
+            const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+            await prisma.user.update({
+                where: {
+                    id: user.id
+                },
+                data: { password: hashedNewPassword ,tempPassword:false}
             });
 
             res.status(STATUS_CODES.OK).json({ message: ERROR_MESSAGES.PASSWORD_UPDATE_SUCCESS });
