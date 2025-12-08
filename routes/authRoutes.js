@@ -31,6 +31,7 @@ router.get('/view-profile', authController.viewProfile);
 router.get('/view-image', authController.viewImage);
 router.put('/edit-profile', validateEditProfile, validate, authController.editProfile);
 router.post('/change-password', authController.changePassword);
+router.post('/new-password', authController.newPassword);
 router.post('/reset-password', authController.resetPassword);
 router.post('/forgot-password',authController.forgotPassword);
 router.post('/verify-otp',authController.verifyOTP);
