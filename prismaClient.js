@@ -1,0 +1,16 @@
+// prismaClient.js
+const { PrismaClient } = require("@prisma/client");
+
+let prisma;
+
+// Prevent creating multiple instances during development (Hot Reload)
+if (process.env.NODE_ENV === "production") {
+    prisma = new PrismaClient();
+} else {
+    if (!global.prisma) {
+        global.prisma = new PrismaClient();
+    }
+    prisma = global.prisma;
+}
+
+module.exports = prisma;
