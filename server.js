@@ -19,7 +19,7 @@ app.use(express.json());
 
 app.use(cors({
     origin: (origin, callback) => {
-	     const allowedOrigins = [ 'http://localhost:3000'];
+	     const allowedOrigins = [ 'http://localhost:3000','https://acronismdr.insightzmss.com'];
 
         // Allow requests with no origin (like Postman or Curl requests)
         if (!origin || allowedOrigins.includes(origin)) {
