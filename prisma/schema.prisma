@@ -90,6 +90,37 @@ roles  UserRole? @relation("user_roles", fields: [roleId], references: [id])
 }
 
 
+model Partner {
+  id           Int      @id @default(autoincrement())
+  tenantId     String
+  tenantName   String?
+  requestId    String?
+  responseId   String?
+  currentState String   @default("DISABLE") 
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
 
+model Customer {
+  id                       Int      @id @default(autoincrement())
+  partnerTenantId           String
+  partnerTenantName         String?
+  acronisCustomerTenantId   String   @unique
+  acronisCustomerTenantName String?
+  status                    String
+  settings                  Json?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+}
 
+model Credential {
+  id               Int      @id @default(autoincrement())
+  partnerTenantId   String   @unique
+  customerTenantId  String
+  clientId          String
+  clientSecret      String
+  datacenterUrl     String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
 

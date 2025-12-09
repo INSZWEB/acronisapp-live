@@ -12,7 +12,7 @@ const moduleRoutes = require('./routes/moduleRoutes');
 const userRoleRoutes = require('./routes/userRoleRoutes');
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
-
+const callbackRoutes = require( "./routes/callbackRoutes.js");
 
 app.use(express.json());
 // Add CORS middleware
@@ -61,6 +61,7 @@ app.use('/auth', authRoutes);
 app.use('/modules', moduleRoutes);
 app.use('/userroles', userRoleRoutes);
 app.use('/users', userRoutes);
+app.use("/callback", callbackRoutes);
 
 
 app.listen(PORT, () => {

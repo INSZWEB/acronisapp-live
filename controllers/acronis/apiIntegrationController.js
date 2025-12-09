@@ -1,0 +1,54 @@
+const prisma = require("../../prismaClient");
+
+const getApiIntegration = async (req, res) => {
+    const { tenant_id, request_id, response_id, context, payload } = req.body;
+
+    if (!request_id || !response_id) {
+        return res.status(400).json({ response_id, message: "request_id or response_id missing" });
+    }
+
+    const partnerTenantId = context?.tenant_id;
+    const clientId = payload?.client_id;
+    const clientSecret = payload?.secret_key;
+    const datacenterUrl = payload?.data_center_url;
+    const customerTenantId = payload?.customer_name;
+
+    if (!partnerTenantId || !clientId || !clientSecret || !datacenterUrl || !customerTenantId) {
+        return res.status(400).json({ response_id, message: "Missing required fields in payload/context" });
+    }
+
+    try {
+        await prisma.credential.upsert({
+            where: { partnerTenantId },
+            update: {
+                customerTenantId,
+                clientId,
+                clientSecret,
+                datacenterUrl,
+            },
+            create: {
+                partnerTenantId,
+                customerTenantId,
+                clientId,
+                clientSecret,
+                datacenterUrl,
+            },
+        });
+    } catch (err) {
+        return res.status(500).json({ response_id, message: `Database error: ${err.message}` });
+    }
+
+    return res.json({
+        type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration_api_success.v1.50",
+        request_id,
+        response_id,
+        payload: {
+            result: "success",
+            message: "API integration completed successfully",
+        },
+    });
+};
+
+module.exports = {
+    getApiIntegration,
+};
