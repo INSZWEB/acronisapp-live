@@ -2,50 +2,59 @@ const prisma = require("../../prismaClient");
 const { v4: uuidv4 } = require("uuid");
 
 // Partner Mirroring Enable
+
 const enable = async (req, res) => {
-    const { request_id, response_id, context, payload } = req.body;
-    const tenant_id = req.body.tenant_id || context?.tenant_id;
+    const { request_id, context, payload } = req.body;
+
+    const tenant_id = req.body?.tenant_id || context?.tenant_id;
+
+    // Generate NEW response_id for Acronis callback (important)
+    const response_id = uuidv4();
 
     if (!tenant_id) {
-        return res.status(400).json({ response_id, message: "tenant_id missing in callback context" });
+        return res.status(400).json({
+            response_id,
+            message: "tenant_id missing in callback context"
+        });
     }
 
     const tenantName = payload?.tenant_name || context?.tenant_name;
 
-    // Check if tenantId already exists
+    // Check if tenant already exists
     const existing = await prisma.partner.findFirst({
         where: { tenantId: tenant_id }
     });
 
-    let newEntry;
+    let entry;
 
     if (!existing) {
-        // Only create if not exists
-        newEntry = await prisma.partner.create({
+        // Create only if not exists
+        entry = await prisma.partner.create({
             data: {
                 tenantId: tenant_id,
                 tenantName,
                 requestId: request_id,
                 responseId: response_id,
-                currentState: "ENABLED",
+                currentState: "ENABLED"
             },
         });
     } else {
-        // If exists, use the existing record
-        newEntry = existing;
+        entry = existing;
     }
 
+    // Acronis expects EXACT schema (no created_at, no extra fields)
     return res.json({
         type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.enable.ok.v1.0",
         request_id,
         response_id,
         payload: {
             state: "ENABLED",
-            vendor_tenant_id: String(newEntry.id),
-            acronis_tenant_id: newEntry.tenantId,
-        },
+            vendor_tenant_id: String(entry.id),      // must be string
+            acronis_tenant_id: entry.tenantId
+        }
     });
 };
+
 
 // Partner Mirroring Get State
 const getState = async (req, res) => {
