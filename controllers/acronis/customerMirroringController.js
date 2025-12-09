@@ -1,11 +1,22 @@
+const { v4: uuidv4 } = require("uuid");
 const prisma = require("../../prismaClient");
 
-// Customer Mirroring Get State
+// ------------------------------
+// Customer Mirroring - GET STATE
+// ------------------------------
 const getState = async (req, res) => {
-    const { request_id, response_id } = req.body;
-        const tenant_id = req.body.tenant_id || req.body?.context?.tenant_id;
+    const { request_id } = req.body;
+    const tenant_id = req.body?.tenant_id || req.body?.context?.tenant_id;
 
-    if (!tenant_id) return res.status(400).json({ response_id, message: "tenant_id missing" });
+    // Generate NEW response_id for Acronis callback
+    const response_id = uuidv4();
+
+    if (!tenant_id) {
+        return res.status(400).json({
+            response_id,
+            message: "tenant_id missing",
+        });
+    }
 
     const rows = await prisma.partner.findMany({
         where: { tenantId: tenant_id },
@@ -26,12 +37,22 @@ const getState = async (req, res) => {
     });
 };
 
-// Customer Mirroring Set State
+// ------------------------------
+// Customer Mirroring - SET STATE
+// ------------------------------
 const setState = async (req, res) => {
-    const { request_id, response_id, payload } = req.body;
-        const tenant_id = req.body.tenant_id || req.body?.context?.tenant_id;
+    const { request_id, payload } = req.body;
+    const tenant_id = req.body?.tenant_id || req.body?.context?.tenant_id;
 
-    if (!tenant_id) return res.status(400).json({ response_id, message: "tenant_id missing" });
+    // Generate NEW response_id for Acronis callback
+    const response_id = uuidv4();
+
+    if (!tenant_id) {
+        return res.status(400).json({
+            response_id,
+            message: "tenant_id missing",
+        });
+    }
 
     const partnerTenantName = payload?.partner_tenant_name || "";
     const enabledList = payload?.enabled || [];
@@ -44,14 +65,14 @@ const setState = async (req, res) => {
             where: { acronisCustomerTenantId: acronis_tenant_id },
             update: {
                 partnerTenantId: tenant_id,
-                partnerTenantName: partnerTenantName,
+                partnerTenantName,
                 acronisCustomerTenantName: acronis_tenant_name,
                 status: "ENABLED",
                 settings,
             },
             create: {
                 partnerTenantId: tenant_id,
-                partnerTenantName: partnerTenantName,
+                partnerTenantName,
                 acronisCustomerTenantId: acronis_tenant_id,
                 acronisCustomerTenantName: acronis_tenant_name,
                 status: "ENABLED",
