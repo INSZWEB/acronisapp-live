@@ -94,14 +94,14 @@ const getState = async (req, res) => {
     }
 
     // Add timestamp as required by Acronis
-    const created_at = new Date().toISOString();
+    // const created_at = new Date().toISOString();
 
     // Response format required by Acronis
     return res.json({
         type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.get_state.ok.v1.0",
         request_id: request_id,
         response_id: response_id,
-        created_at: created_at,
+        // created_at: created_at,
         payload: {
             state: state
         }
