@@ -1,4 +1,5 @@
 const prisma = require("../../prismaClient");
+const { v4: uuidv4 } = require("uuid");
 
 // Partner Mirroring Enable
 const enable = async (req, res) => {
@@ -48,39 +49,65 @@ const enable = async (req, res) => {
 
 // Partner Mirroring Get State
 const getState = async (req, res) => {
-    const { request_id, response_id } = req.body;
-    const tenant_id = req.body.tenant_id ||  req.body?.context?.tenant_id;
+    const { request_id } = req.body;
+    const tenant_id = req.body?.tenant_id || req.body?.context?.tenant_id;
 
-    if (!tenant_id) return res.status(400).json({ response_id, message: "tenant_id missing" });
-
-    const entry = await prisma.partner.findFirst({
-        where: { tenantId: tenant_id },
-        orderBy: { id: "desc" },
-    });
-
-    let state;
-    if (entry) {
-        state = entry.currentState?.toUpperCase() || "DISABLED";
-        if (state === "DISABLED") state = "ENABLED";
-
-        await prisma.partner.updateMany({
-            where: { tenantId: tenant_id },
-            data: { currentState: state },
-        });
-    } else {
-        state = "DISABLED";
-        await prisma.partner.create({
-            data: { tenantId: tenant_id, requestId: request_id, responseId: "cd03f831-8437-44eb-adea-094749e24f5f", currentState: "DISABLED" },
+    if (!tenant_id) {
+        return res.status(400).json({
+            response_id: null,
+            message: "tenant_id missing"
         });
     }
 
+    // Generate new response_id
+    const response_id = uuidv4();
+
+    // Find latest partner record
+    const entry = await prisma.partner.findFirst({
+        where: { tenantId: tenant_id },
+        orderBy: { id: "desc" }
+    });
+
+    let state;
+
+    if (entry) {
+        state = entry.currentState?.toUpperCase() || "DISABLED";
+
+        // Update existing records
+        await prisma.partner.updateMany({
+            where: { tenantId: tenant_id },
+            data: { currentState: state }
+        });
+
+    } else {
+        // First time tenant → create entry
+        state = "DISABLED";
+
+        await prisma.partner.create({
+            data: {
+                tenantId: tenant_id,
+                requestId: request_id,
+                responseId: response_id,
+                currentState: "DISABLED"
+            }
+        });
+    }
+
+    // Add timestamp as required by Acronis
+    const created_at = new Date().toISOString();
+
+    // Response format required by Acronis
     return res.json({
         type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.get_state.ok.v1.0",
-        request_id,
-        response_id:"cd03f831-8437-44eb-adea-094749e24f5f",
-        payload: { "state":state},
+        request_id: request_id,
+        response_id: response_id,
+        created_at: created_at,
+        payload: {
+            state: state
+        }
     });
 };
+
 
 // Partner Mirroring Reset
 const reset = async (req, res) => {
