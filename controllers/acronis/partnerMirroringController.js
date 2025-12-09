@@ -49,7 +49,7 @@ const enable = async (req, res) => {
 // Partner Mirroring Get State
 const getState = async (req, res) => {
     const { request_id, response_id } = req.body;
-    const tenant_id = req.body.tenant_id ||  req.body?.context?.tenant_id;
+    const tenant_id = req.body.tenant_id || req.body?.context?.tenant_id;
 
     if (!tenant_id) return res.status(400).json({ response_id, message: "tenant_id missing" });
 
@@ -74,11 +74,20 @@ const getState = async (req, res) => {
     //     });
     // }
 
+    // return res.json({
+    //     type: "cti.a.p.acgw.response.v1.0~a.p.partner.mirroring.get_state.ok.v1.0",
+    //     request_id,
+    //     response_id,
+    //     payload: { state:"DISABLED" },
+    // });
+
     return res.json({
-        type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.get_state.ok.v1.0",
-        request_id,
-        response_id,
-        payload: { state:"DISABLED" },
+        "type": "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.get_state.ok.v1.0",
+        "request_id": "14ba57f7-b28c-4e5f-b1ae-55eba40a8502",
+        "response_id": "cd03f831-8437-44eb-adea-094749e24f5f",
+        "payload": {
+            "state": "DISABLED"
+        }
     });
 };
 
