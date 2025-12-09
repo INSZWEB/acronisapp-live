@@ -78,7 +78,7 @@ const getState = async (req, res) => {
         type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.get_state.ok.v1.0",
         request_id,
         response_id,
-        payload: { state:"DISABLE" },
+        payload: { state:"DISABLED" },
     });
 };
 
