@@ -83,7 +83,7 @@ const getState = async (req, res) => {
     // });
 
     return res.json({
-        "type": "cti.a.p.acgw.response.v1.0~a.p.partner.mirroring.get_state.ok.v1.0",
+        "type": "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.get_state.ok.v1.0",
         "request_id": "14ba57f7-b28c-4e5f-b1ae-55eba40a8502",
         "response_id": "cd03f831-8437-44eb-adea-094749e24f5f",
         "payload": {
