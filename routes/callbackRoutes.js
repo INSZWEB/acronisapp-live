@@ -31,6 +31,7 @@ const callbackMapping = {
 
 // Single POST endpoint for all callbacks
 router.post("/", async (req, res) => {
+      console.log("Incoming Body:", req.body);
     const callback_id = req.body.callback_id || req.body.context?.callback_id;
 
     if (!callback_id) {
