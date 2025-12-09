@@ -58,27 +58,27 @@ const getState = async (req, res) => {
         orderBy: { id: "desc" },
     });
 
-    let state;
-    if (entry) {
-        state = entry.currentState?.toUpperCase() || "DISABLED";
-        if (state === "DISABLED") state = "ENABLED";
+    // let state;
+    // if (entry) {
+    //     state = entry.currentState?.toUpperCase() || "DISABLED";
+    //     if (state === "DISABLED") state = "ENABLED";
 
-        await prisma.partner.updateMany({
-            where: { tenantId: tenant_id },
-            data: { currentState: state },
-        });
-    } else {
-        state = "DISABLED";
-        await prisma.partner.create({
-            data: { tenantId: tenant_id, requestId: request_id, responseId: response_id, currentState: "DISABLED" },
-        });
-    }
+    //     await prisma.partner.updateMany({
+    //         where: { tenantId: tenant_id },
+    //         data: { currentState: state },
+    //     });
+    // } else {
+    //     state = "DISABLED";
+    //     await prisma.partner.create({
+    //         data: { tenantId: tenant_id, requestId: request_id, responseId: response_id, currentState: "DISABLED" },
+    //     });
+    // }
 
     return res.json({
-        type: "cti.a.p.acgw.response.v1.0~a.p.partner.mirroring.get_state.ok.v1.0",
+        type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.get_state.ok.v1.0",
         request_id,
         response_id,
-        payload: { state },
+        payload: { state:"DISABLED" },
     });
 };
 
