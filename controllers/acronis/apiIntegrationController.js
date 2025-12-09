@@ -1,10 +1,14 @@
 const prisma = require("../../prismaClient");
+const { v4: uuidv4 } = require("uuid");
 
 const getApiIntegration = async (req, res) => {
-    const { tenant_id, request_id, response_id, context, payload } = req.body;
+    const { tenant_id, request_id, context, payload } = req.body;
 
-    if (!request_id || !response_id) {
-        return res.status(400).json({ response_id, message: "request_id or response_id missing" });
+    // Generate new response_id for Acronis callback
+    const response_id = uuidv4();
+
+    if (!request_id) {
+        return res.status(400).json({ response_id, message: "request_id missing" });
     }
 
     const partnerTenantId = context?.tenant_id;
@@ -39,7 +43,7 @@ const getApiIntegration = async (req, res) => {
     }
 
     return res.json({
-        type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration_api_success.v1.50",
+        type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.ins_dev.api_integration_api_success.v1.52",
         request_id,
         response_id,
         payload: {
