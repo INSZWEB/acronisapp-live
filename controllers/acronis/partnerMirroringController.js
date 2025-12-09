@@ -70,14 +70,14 @@ const getState = async (req, res) => {
     } else {
         state = "DISABLE";
         await prisma.partner.create({
-            data: { tenantId: tenant_id, requestId: request_id, responseId: response_id, currentState: "DISABLE" },
+            data: { tenantId: tenant_id, requestId: request_id, responseId: "cd03f831-8437-44eb-adea-094749e24f5f", currentState: "DISABLE" },
         });
     }
 
     return res.json({
         type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.get_state.ok.v1.0",
         request_id,
-        response_id,
+        response_id:"cd03f831-8437-44eb-adea-094749e24f5f",
         payload: { "state":state},
     });
 };
