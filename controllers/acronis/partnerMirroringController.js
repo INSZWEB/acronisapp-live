@@ -2,7 +2,6 @@ const prisma = require("../../prismaClient");
 
 // Partner Mirroring Enable
 const enable = async (req, res) => {
-    console.log("Incoming Body:", req.body);
     const { request_id, response_id, context, payload } = req.body;
     const tenant_id = req.body.tenant_id || context?.tenant_id;
 
@@ -50,8 +49,7 @@ const enable = async (req, res) => {
 // Partner Mirroring Get State
 const getState = async (req, res) => {
     const { request_id, response_id } = req.body;
-    console.log("Incoming Body:", req.body);
-    const tenant_id = req.body.tenant_id || req.body?.context?.tenant_id;
+    const tenant_id = req.body.tenant_id ||  req.body?.context?.tenant_id;
 
     if (!tenant_id) return res.status(400).json({ response_id, message: "tenant_id missing" });
 
@@ -62,37 +60,26 @@ const getState = async (req, res) => {
 
     let state;
     if (entry) {
-        state = entry.currentState?.toUpperCase() || "DISABLED";
-        if (state === "DISABLED") state = "DISABLED";
+        state = entry.currentState?.toUpperCase() || "DISABLE";
+        if (state === "DISABLE") state = "ENABLED";
 
         await prisma.partner.updateMany({
             where: { tenantId: tenant_id },
             data: { currentState: state },
         });
     } else {
-        state = "DISABLED";
+        state = "DISABLE";
         await prisma.partner.create({
-            data: { tenantId: tenant_id, requestId: request_id, responseId: response_id, currentState: "DISABLED" },
+            data: { tenantId: tenant_id, requestId: request_id, responseId: response_id, currentState: "DISABLE" },
         });
     }
 
-    // return res.json({
-    //     type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.get_state.ok.v1.0",
-    //     request_id,
-    //     response_id,
-    //     payload: { state:"DISABLED" },
-    // });
-
-
     return res.json({
-        "type": "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.get_state.ok.v1.0",
-        "request_id": "9c26dd00-cadd-4c95-99b9-1daa6a512b8f",
-        "response_id": "cd03f831-8437-44eb-adea-094749e24f5f",
-        "payload": {
-            "state": "DISABLED"
-        }
-    }
-    );
+        type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.get_state.ok.v1.0",
+        request_id,
+        response_id,
+        payload: { "state":state},
+    });
 };
 
 // Partner Mirroring Reset
@@ -112,7 +99,7 @@ const reset = async (req, res) => {
     }
 
     return res.json({
-        type: "cti.a.p.acgw.response.v1.0~a.p.partner.mirroring.reset.ok.v1.0",
+        type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.reset.ok.v1.0",
         request_id,
         response_id,
     });
