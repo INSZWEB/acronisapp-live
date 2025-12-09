@@ -60,17 +60,17 @@ const getState = async (req, res) => {
 
     let state;
     if (entry) {
-        state = entry.currentState?.toUpperCase() || "DISABLE";
-        if (state === "DISABLE") state = "ENABLED";
+        state = entry.currentState?.toUpperCase() || "DISABLED";
+        if (state === "DISABLED") state = "ENABLED";
 
         await prisma.partner.updateMany({
             where: { tenantId: tenant_id },
             data: { currentState: state },
         });
     } else {
-        state = "DISABLE";
+        state = "DISABLED";
         await prisma.partner.create({
-            data: { tenantId: tenant_id, requestId: request_id, responseId: "cd03f831-8437-44eb-adea-094749e24f5f", currentState: "DISABLE" },
+            data: { tenantId: tenant_id, requestId: request_id, responseId: "cd03f831-8437-44eb-adea-094749e24f5f", currentState: "DISABLED" },
         });
     }
 
