@@ -1,10 +1,20 @@
 const prisma = require("../../prismaClient");
+const { v4: uuidv4 } = require("uuid");
 
 const customerNameList = async (req, res) => {
-    const { tenant_id, request_id, response_id, context } = req.body;
+    const { tenant_id, request_id, context } = req.body;
+    
+    // Generate new response_id
+    const response_id = uuidv4();
+
     const partnerTenantId = tenant_id || context?.tenant_id;
 
-    if (!partnerTenantId) return res.status(400).json({ response_id, message: "tenant_id missing" });
+    if (!partnerTenantId) {
+        return res.status(400).json({
+            response_id,
+            message: "tenant_id missing"
+        });
+    }
 
     const customers = await prisma.customer.findMany({
         where: { partnerTenantId },
@@ -19,8 +29,7 @@ const customerNameList = async (req, res) => {
     }));
 
     return res.json({
-        // type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.customer_name_list_ok.v1.52",
-        type:"cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.ins_dev.customer_name_list_ok.v1.52",
+        type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.ins_dev.customer_name_list_ok.v1.52",
         request_id,
         response_id,
         payload: { items },
