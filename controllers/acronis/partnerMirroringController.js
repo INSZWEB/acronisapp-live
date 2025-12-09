@@ -75,7 +75,7 @@ const getState = async (req, res) => {
     }
 
     return res.json({
-        type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.get_state.ok.v1.0",
+        type: "cti.a.p.acgw.response.v1.0~a.p.partner.mirroring.get_state.ok.v1.0",
         request_id,
         response_id,
         payload: { state },
@@ -99,7 +99,7 @@ const reset = async (req, res) => {
     }
 
     return res.json({
-        type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.reset.ok.v1.0",
+        type: "cti.a.p.acgw.response.v1.0~a.p.partner.mirroring.reset.ok.v1.0",
         request_id,
         response_id,
     });
