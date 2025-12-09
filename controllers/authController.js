@@ -43,6 +43,14 @@ const authController = {
             // --- Find user by email ---
             const user = await prisma.user.findUnique({
                 where: { email },
+                include: {
+                    roles: {   // <-- your relation User.role (roleId)
+                        select: {
+                            id: true,
+                            roleName: true
+                        }
+                    }
+                }
             });
 
             if (!user) {
@@ -52,11 +60,11 @@ const authController = {
             }
 
             // --- Check if user has permission to login ---
-            if (!user.isSelfLogin) {
-                return res
-                    .status(STATUS_CODES.FORBIDDEN)
-                    .json({ error: ERROR_MESSAGES.NO_PERMISSION_TO_LOGIN });
-            }
+            // if (!user.isSelfLogin) {
+            //     return res
+            //         .status(STATUS_CODES.FORBIDDEN)
+            //         .json({ error: ERROR_MESSAGES.NO_PERMISSION_TO_LOGIN });
+            // }
 
             // --- Check account status ---
             if (user.status !== "Active") {
@@ -65,7 +73,7 @@ const authController = {
                     .json({ error: ERROR_MESSAGES.ACCOUNT_INACTIVE });
             }
 
-            // --- Compare entered password with stored password ---
+            // --- Verify password ---
             const isMatch = await bcrypt.compare(password, user.password);
             if (!isMatch) {
                 return res
@@ -73,7 +81,7 @@ const authController = {
                     .json({ error: ERROR_MESSAGES.INVALID_CREDENTIALS });
             }
 
-            // --- Auto verify email if password is correct and email not verified ---
+            // --- Auto verify email ---
             if (!user.emailVerified) {
                 await prisma.user.update({
                     where: { id: user.id },
@@ -82,10 +90,6 @@ const authController = {
             }
 
             // --- Create JWT Token ---
-            if (!process.env.JWT_SECRET) {
-                throw new Error("JWT_SECRET not defined in environment variables");
-            }
-
             const token = jwt.sign(
                 {
                     id: user.id,
@@ -98,44 +102,32 @@ const authController = {
                 { expiresIn: "1d" }
             );
 
-            // --- Fetch role permissions ---
-            let rolePermissions = [];
-            if (user.userType === "Technician") {
-                if (!user.rolePermission || user.rolePermission.length === 0) {
-                    return res
-                        .status(STATUS_CODES.FORBIDDEN)
-                        .json({ error: ERROR_MESSAGES.NO_ROLE_PERMISSIONS });
-                }
-
-                rolePermissions = await prisma.userRole.findMany({
-                    where: { id: { in: user.rolePermission.map(role => role.id) } },
-                    include: {
-                        modules: {
-                            select: {
-                                roleId: true,
-                                moduleId: true,
-                                view: true,
-                                add: true,
-                                edit: true,
-                                delete: true,
-                                module: { select: { id: true, moduleName: true } },
-                            },
+            // --- Fetch role permissions using user.roleId ---
+            const rolePermissions = await prisma.userRole.findUnique({
+                where: { id: user.roleId },
+                include: {
+                    modules: {
+                        select: {
+                            roleId: true,
+                            moduleId: true,
+                            view: true,
+                            add: true,
+                            edit: true,
+                            delete: true,
+                            module: { select: { id: true, moduleName: true } },
                         },
                     },
-                });
+                },
+            });
 
-                rolePermissions = rolePermissions.map(role => ({
-                    ...role,
-                    modules: role.modules.map(module => ({
-                        ...module,
-                        moduleName: module.module.moduleName,
-                    })),
-                }));
-            }
-
-            if (user.userType === "Requester") {
-                rolePermissions = user.isRequesterView;
-            }
+            // format modules
+            const formattedPermissions = {
+                ...rolePermissions,
+                modules: rolePermissions.modules.map(m => ({
+                    ...m,
+                    moduleName: m.module.moduleName
+                }))
+            };
 
             // --- Final Response ---
             return res.status(STATUS_CODES.OK).json({
@@ -144,12 +136,13 @@ const authController = {
                 user: {
                     id: user.id,
                     email: user.email,
-                    displayName:user.displayName,
+                    displayName: user.displayName,
                     firstName: user.firstName,
                     lastName: user.lastName,
                     branchId: user.branchId,
-                    userType: user.userType,
-                    rolePermission: rolePermissions,
+                    userType: user.roles.roleName,   // <-- FINAL USER TYPE
+                    rolePermission: formattedPermissions,
+                    tempPassword: user.tempPassword
                 },
             });
 
@@ -160,6 +153,7 @@ const authController = {
                 .json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
         }
     },
+
 
 
     editProfile: async (req, res) => {
@@ -207,7 +201,7 @@ const authController = {
     },
     changePassword: async (req, res) => {
         try {
-            const { userId, branchId } = req.query;
+            const { userId } = req.query;
             const { currentPassword, newPassword, confirmNewPassword } = req.body;
 
 
@@ -219,8 +213,7 @@ const authController = {
             // Fetch user from database
             const user = await prisma.user.findUnique({
                 where: {
-                    id: parseInt(userId),
-                    branchId: parseInt(branchId)
+                    id: parseInt(userId)
                 }
             });
 
@@ -241,10 +234,54 @@ const authController = {
             const hashedNewPassword = await bcrypt.hash(newPassword, 10);
             await prisma.user.update({
                 where: {
-                    id: user.id,
-                    branchId: user.branchId
+                    id: user.id
                 },
                 data: { password: hashedNewPassword }
+            });
+
+            res.status(STATUS_CODES.OK).json({ message: ERROR_MESSAGES.PASSWORD_UPDATE_SUCCESS });
+
+        } catch (error) {
+            res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+        }
+    },
+    newPassword: async (req, res) => {
+        try {
+            const { currentPassword, newPassword, confirmNewPassword,userId } = req.body;
+
+
+            // Check if newPassword and confirmNewPassword match
+            if (newPassword !== confirmNewPassword) {
+                return res.status(STATUS_CODES.BAD_REQUEST).json({ error: ERROR_MESSAGES.PASSWORDS_DO_NOT_MATCH });
+            }
+
+            // Fetch user from database
+            const user = await prisma.user.findUnique({
+                where: {
+                    id: parseInt(userId)
+                }
+            });
+
+
+            if (!user) {
+                return res.status(STATUS_CODES.NOT_FOUND).json({ error: ERROR_MESSAGES.USER_NOT_FOUND });
+            }
+
+            // Compare current password with the stored password
+            const match = await bcrypt.compare(currentPassword, user.password);
+
+
+            if (!match) {
+                return res.status(STATUS_CODES.UNAUTHORIZED).json({ error: ERROR_MESSAGES.INVALID_CURRENT_PASSWORD });
+            }
+
+            // Hash the new password and update it in the database
+            const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+            await prisma.user.update({
+                where: {
+                    id: user.id
+                },
+                data: { password: hashedNewPassword ,tempPassword:false}
             });
 
             res.status(STATUS_CODES.OK).json({ message: ERROR_MESSAGES.PASSWORD_UPDATE_SUCCESS });

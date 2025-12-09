@@ -66,35 +66,10 @@ const userController = {
     add: async (req, res) => {
         try {
             // Destructure the necessary fields from the request body
-            const {
-                displayName,
-                firstName,
-                lastName,
-                email,
-                employeeId,
-                jobTitle,
-                SMSMailID,
-                description,
-                phone,
-                mobile,
-                CostPerHour,
-                isSelfLogin,
-                isVIPUser,
-                emailVerified,
-                phoneVerified,
-                status,
-                userType,
-                isRequesterView,
-                branchId,
-                departmentNameId,
-                SitesAssociationId,
-                GroupAssociationId,
-                reportingManagerId,
-                rolePermission
-            } = req.body;
+            const { email, firstName, lastName, mobile, roles } = req.body;
 
             // Validate required fields
-            if (!firstName || !email || !userType) {
+            if (!firstName || !email || !roles) {
                 return res.status(STATUS_CODES.BAD_REQUEST).json({ error: ERROR_MESSAGES.BAD_REQUEST });
             }
 
@@ -116,46 +91,28 @@ const userController = {
             const password = generateRandomPassword();
             const hashedPassword = await bcrypt.hash(password, 10);
 
-            // 15 minutes from now
-            const passwordExpiry = new Date(Date.now() + 15 * 60 * 1000);
 
             // Create a new user with the hashed password
             const user = await prisma.user.create({
                 data: {
-                    displayName,
                     firstName,
                     lastName,
                     email,
-                    employeeId,
-                    jobTitle,
-                    SMSMailID,
-                    description,
-                    phone: phone.toString(),
                     mobile: String(mobile),
-                    CostPerHour,
-                    isSelfLogin,
-                    isVIPUser,
                     password: hashedPassword,  // Use the hashed password here
-                    emailVerified,
-                    phoneVerified,
-                    status,
-                    userType,
-                    isRequesterView,
-                    branchId,
-                    departmentNameId,
-                    SitesAssociationId,
-                    GroupAssociationId,
-                    reportingManagerId,
-                    rolePermission,
-
+                    emailVerified: true,
+                    roleId: parseInt(roles),
+                    
 
                 },
             });
 
+            await sendVerificationEmail(email, password);
+
             // If isSelfLogin is true, send verification email
-            if (isSelfLogin) {
-                await sendVerificationEmail(email, password);
-            }
+            // if (isSelfLogin) {
+            //     
+            // }
 
             // Return the created user and status code
             return res.status(201).json(user);
@@ -212,36 +169,14 @@ const userController = {
                     where: whereCondition,
                     select: {
                         id: true,
-                        displayName: true,
                         firstName: true,
                         lastName: true,
                         email: true,
-                        employeeId: true,
-                        jobTitle: true,
-                        phone: true,
-                        mobile: true,
-                        userType: true,
-                        isVIPUser: true,
-                        branchId: true,
-                        branchName: {
+                        roles: {
                             select: {
-                                name: true,
-                                description: true
+                                roleName: true
                             }
-                        },
-                        departmentNameId: true,
-                        departmentName: {
-                            select: {
-                                departmentName: true,
-                            }
-                        },
-                        reportingManagerId: true,
-                        reportingManager: {
-                            select: {
-                                firstName: true,
-                            }
-                        },
-
+                        }
                     },
                     skip: skip,
                     take: limit,
@@ -267,28 +202,7 @@ const userController = {
             res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
         }
     },
-    // selectTechnican: async (req, res) => {
-    //     try {
-    //         const result = await prisma.user.findMany({
-    //             where: {
-    //                 userType: 'Technician',  // Filter records where status is 'Active'
-    //             },
-    //             select: {
-    //                 id: true,
-    //                 displayName: true,  // Select only the 'name' field
-    //                 email: true,
-    //             },
-    //             orderBy: { id: 'desc' }, // Order by ID in descending order
-    //         });
 
-    //         res.status(STATUS_CODES.OK).json({
-    //             data: result, // Send result as an object with a key
-    //         });
-    //     } catch (error) {
-    //         console.error(error);
-    //         res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
-    //     }
-    // },
     selectTechnican: async (req, res) => {
         try {
             const page = parseInt(req.query.page) || ERROR_MESSAGES.DEFAULT_PAGE;
@@ -762,83 +676,23 @@ const userController = {
                 },
                 select: {
                     id: true,
-                    displayName: true,
                     firstName: true,
                     lastName: true,
                     email: true,
-                    employeeId: true,
-                    jobTitle: true,
-                    SMSMailID: true,
-                    description: true,
-                    phone: true,
                     mobile: true,
-                    CostPerHour: true,
-                    isSelfLogin: true,
-                    isVIPUser: true,
-                    userType: true,
-                    isRequesterView: true,
-                    branchId: true,
-                    branchName: {
+                    roles: {
                         select: {
-                            name: true,
-                            description: true
+                            id: true,
+                            roleName: true
                         }
                     },
-                    departmentNameId: true,
-                    departmentName: {
-                        select: {
-                            departmentName: true,
-                        }
-                    },
-                    SitesAssociationId: true,
-                    SitesAssociation: {
-                        select: {
-                            name: true,
-                        }
-                    },
-                    GroupAssociationId: true,
-                    reportingManagerId: true,
-                    reportingManager: {
-                        select: {
-                            firstName: true,
-                        }
-                    },
-                    rolePermission: true
+
                 }
             });
 
             if (!result) {
                 return res.status(STATUS_CODES.NOT_FOUND).json({ error: ERROR_MESSAGES.USER_NOT_FOUND });
             }
-
-            // // Parse TechniciansId from string to array
-            // // Safely parse GroupAssociationId from string to array
-            // const GroupAssociationId = result.GroupAssociationId
-            //     ? result.GroupAssociationId.slice(1, -1).split(',').map(Number)
-            //     : [];
-
-
-            // // Fetch technicians' first names based on the parsed IDs
-            // const GroupAssociations = await prisma.User.findMany({
-            //     where: {
-            //         id: {
-            //             in: GroupAssociationId,
-            //         }
-            //     },
-            //     select: {
-            //         firstName: true,
-            //     }
-            // });
-
-            // // Add technicians' first names to the result
-            // const GroupAssociation = GroupAssociations.map(tech => tech.firstName);
-
-            // // Prepare the final response
-            // const response = {
-            //     ...result,
-            //     GroupAssociation
-            // };
-
 
             return res.status(STATUS_CODES.OK).json(result);
         } catch (error) {
@@ -849,33 +703,16 @@ const userController = {
     update: async (req, res) => {
         try {
             const { id } = req.params;
-            const { displayName,
+            const {
                 firstName,
                 lastName,
                 email,
-                employeeId,
-                jobTitle,
-                SMSMailID,
-                description,
-                phone,
                 mobile,
-                CostPerHour,
-                isSelfLogin,
-                isVIPUser,
-                emailVerified,
-                phoneVerified,
-                userType,
-                isRequesterView,
-                branchId,
-                departmentNameId,
-                SitesAssociationId,
-                GroupAssociationId,
-                reportingManagerId,
-                rolePermission
+                roles
             } = req.body;
 
             // Validate required fields
-            if (isNaN(parseInt(id)) || !firstName || !userType) {
+            if (isNaN(parseInt(id)) || !firstName) {
                 return res.status(STATUS_CODES.BAD_REQUEST).json({ error: ERROR_MESSAGES.BAD_REQUEST });
             }
 
@@ -900,50 +737,13 @@ const userController = {
                 return res.status(STATUS_CODES.CONFLICT).json({ error: ERROR_MESSAGES.EMAIL_ALREADY_EXISTS });
             }
 
-            // Find the matching record in the requester table where userId matches the user table id
-            const requesterRecord = await prisma.requester.findFirst({
-                where: {
-                    userId: parseInt(id), // Ensure requester record belongs to the user
-                },
-                select: { id: true } // Get only the requester record ID
-            });
-
-            // Only update if a requester record exists
-            if (requesterRecord) {
-                await prisma.requester.update({
-                    where: { id: requesterRecord.id },
-                    data: {
-                        departmentId: parseInt(departmentNameId),
-                        siteId: parseInt(branchId),
-                    },
-                });
-            }
-
             // Prepare update data for user table
             const updateData = {
-                displayName,
                 firstName,
                 lastName,
                 email,
-                employeeId,
-                jobTitle,
-                SMSMailID,
-                description,
-                phone: String(phone),
                 mobile: String(mobile),
-                CostPerHour,
-                isSelfLogin,
-                isVIPUser,
-                emailVerified,
-                phoneVerified,
-                userType,
-                isRequesterView,
-                branchId,
-                departmentNameId: parseInt(departmentNameId),
-                SitesAssociationId,
-                GroupAssociationId,
-                reportingManagerId: parseInt(reportingManagerId),
-                rolePermission,
+                roleId: parseInt(roles),
             };
 
             // Update the user record
@@ -952,29 +752,6 @@ const userController = {
                 data: updateData,
             });
 
-            // --- Check isSelfLogin transition (false → true) ---
-            if (!existingUser.isSelfLogin && isSelfLogin === true) {
-                // const verificationToken = generateVerificationToken(result.id, email);
-                // const verificationLink = `${process.env.NEXT_PUBLIC_BASE_URL_FRONTEND}verifyemail?token=${verificationToken}`;
-
-                // Generate a new temporary password
-                // 15 minutes from now
-                const tempPassword = generateRandomPassword();
-                const hashedPassword = await bcrypt.hash(tempPassword, 10);
-                const passwordExpiry = new Date(Date.now() + 15 * 60 * 1000);
-
-
-                // Hash and update password in DB
-                await prisma.user.update({
-                    where: { id: parseInt(id) },
-                    data: { password: hashedPassword, },
-                });
-
-                // Send verification email with the plain temp password
-                await sendVerificationEmail(email, tempPassword);
-            }
-
-
             // Respond with the updated user data
             res.status(STATUS_CODES.OK).json(result);
         } catch (error) {
@@ -982,109 +759,6 @@ const userController = {
             res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
         }
     },
-
-
-
-    // update: async (req, res) => {
-    //     try {
-    //         const { id } = req.params;
-    //         const { displayName,
-    //             firstName,
-    //             lastName,
-    //             email,
-    //             employeeId,
-    //             jobTitle,
-    //             SMSMailID,
-    //             description,
-    //             phone,
-    //             mobile,
-    //             CostPerHour,
-    //             isSelfLogin,
-    //             isVIPUser,
-    //             password: hashedPassword,  // Use the hashed password here
-    //             emailVerified,
-    //             phoneVerified,
-    //             userType,
-    //             isRequesterView,
-    //             branchId,
-    //             departmentNameId,
-    //             SitesAssociationId,
-    //             GroupAssociationId,
-    //             reportingManagerId, rolePermission} = req.body;
-
-
-    //         // Validate required fields
-    //         if (isNaN(parseInt(id)) || !firstName || !userType) {
-    //             return res.status(STATUS_CODES.BAD_REQUEST).json({ error: ERROR_MESSAGES.BAD_REQUEST });
-    //         }
-
-    //         // Check if the user exists
-    //         const existingUser = await prisma.user.findUnique({
-    //             where: {
-    //                 id: parseInt(id),
-    //             },
-    //         });
-
-    //         if (!existingUser) {
-    //             return res.status(STATUS_CODES.NOT_FOUND).json({ error: ERROR_MESSAGES.USER_NOT_FOUND });
-    //         }
-    //         // Check if email already exists
-    //         const existingEmail = await prisma.user.findFirst({
-    //             where: {
-    //                 email,
-    //                 NOT: {
-    //                     id: parseInt(id),
-    //                 },
-    //             },
-    //         });
-
-    //         if (existingEmail) {
-    //             return res.status(STATUS_CODES.CONFLICT).json({ error: ERROR_MESSAGES.EMAIL_ALREADY_EXISTS });
-    //         }
-
-    //         const updateData = {
-    //             displayName,
-    //             firstName,
-    //             lastName,
-    //             email,
-    //             employeeId,
-    //             jobTitle,
-    //             SMSMailID,
-    //             description,
-    //             phone,
-    //             mobile,
-    //             CostPerHour,
-    //             isSelfLogin,
-    //             isVIPUser,
-    //             password: hashedPassword,  // Use the hashed password here
-    //             emailVerified,
-    //             phoneVerified,
-    //             userType,
-    //             isRequesterView,
-    //             branchId,
-    //             departmentNameId: parseInt(departmentNameId),
-    //             SitesAssociationId,
-    //             GroupAssociationId,
-    //             reportingManagerId: parseInt(reportingManagerId),
-    //             rolePermission
-    //         };
-
-    //         // Update the user without modifying the email field
-    //         const result = await prisma.user.update({
-    //             where: {
-    //                 id: parseInt(id),
-    //             },
-    //             data: updateData,
-    //         });
-
-    //         // Respond with the updated user data
-    //         res.status(STATUS_CODES.OK).json(result);
-    //     } catch (error) {
-    //         console.error(error);
-    //         res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
-    //     }
-    // },
-
     delete: async (req, res) => {
         try {
             const { id } = req.params;
