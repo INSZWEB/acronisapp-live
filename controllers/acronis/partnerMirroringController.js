@@ -26,7 +26,7 @@ const enable = async (req, res) => {
                 tenantName,
                 requestId: request_id,
                 responseId: response_id,
-                currentState: "ENABLE",
+                currentState: "ENABLED",
             },
         });
     } else {
@@ -61,7 +61,7 @@ const getState = async (req, res) => {
     let state;
     if (entry) {
         state = entry.currentState?.toUpperCase() || "DISABLE";
-        if (state === "DISABLE") state = "ENABLE";
+        if (state === "DISABLE") state = "ENABLED";
 
         await prisma.partner.updateMany({
             where: { tenantId: tenant_id },
