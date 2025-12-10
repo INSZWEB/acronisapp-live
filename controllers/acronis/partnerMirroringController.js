@@ -18,7 +18,14 @@ const enable = async (req, res) => {
         });
     }
 
-    const tenantName = payload?.tenant_name || context?.tenant_name;
+    //const tenantName = payload?.tenant_name || context?.tenant_name;
+    const tenantName =
+        payload?.acronis_tenant_name ||
+        payload?.tenant_name ||
+        context?.acronis_tenant_name ||
+        context?.tenant_name ||
+        null;
+
 
     // Check if tenant already exists
     const existing = await prisma.partner.findFirst({
