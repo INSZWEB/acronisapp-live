@@ -13,6 +13,11 @@ const userRoleRoutes = require('./routes/userRoleRoutes');
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
 const callbackRoutes = require( "./routes/callbackRoutes.js");
+const parnterRoutes = require( "./routes/parnterRoutes.js");
+const customerRoutes = require( "./routes/customerRoutes.js");
+const credentialRoutes = require( "./routes/credentialRoutes.js");
+const settingsRoutes = require("./routes/settingsRoutes");
+const devicesRoutes = require("./routes/devicesRoutes.js");
 
 app.use(express.json());
 // Add CORS middleware
@@ -62,7 +67,11 @@ app.use('/modules', moduleRoutes);
 app.use('/userroles', userRoleRoutes);
 app.use('/users', userRoutes);
 app.use("/callback", callbackRoutes);
-
+app.use("/parnters", parnterRoutes);
+app.use("/customers",customerRoutes);
+app.use("/credential",credentialRoutes)
+app.use("/settings", settingsRoutes);
+app.use('/devices',devicesRoutes)
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
