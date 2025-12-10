@@ -46,7 +46,16 @@ const enable = async (req, res) => {
             },
         });
     } else {
-        entry = existing;
+        // entry = existing;
+        entry = await prisma.partner.update({
+            where: { id: existing.id },
+            data: {
+                tenantName,
+                requestId: request_id,
+                responseId: response_id,
+                currentState: "ENABLED"
+            }
+        });
     }
 
     // Acronis expects EXACT schema (no created_at, no extra fields)
