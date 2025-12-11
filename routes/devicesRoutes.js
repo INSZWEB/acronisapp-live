@@ -9,8 +9,10 @@ const apiMiddleware = require('../middlewares/apiMiddleware');
 router.post('/add',apiMiddleware, commonMiddleware, deviceController.add);
 router.get('/list',apiMiddleware, deviceController.listall);
 router.get('/select', deviceController.select);
+router.get('/count', deviceController.count);
 router.put('/update/:id',apiMiddleware, commonMiddleware, deviceController.update);
 router.get('/view/:id',apiMiddleware, deviceController.view);
+router.get('/policy/:id',apiMiddleware, deviceController.policy);
 router.delete('/delete/:id',apiMiddleware, deviceController.delete);
 
 

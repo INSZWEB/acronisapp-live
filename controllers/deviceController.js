@@ -242,18 +242,112 @@ const deviceController = {
                 },
                 select: {
                     id: true,
-                    id: true,
                     agentId: true,
                     hostname: true,
                     hostId: true,
                     online: true,
                     enabled: true,
                     osFamily: true,
-                    registrationDate: true,
-                    units: true
+                    registrationDate: true
 
                 }
             });
+
+            if (!result) {
+                return res.status(STATUS_CODES.NOT_FOUND).json({ error: ERROR_MESSAGES.USER_NOT_FOUND });
+            }
+
+            return res.status(STATUS_CODES.OK).json(result);
+        } catch (error) {
+            console.error(error);
+            return res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+        }
+    },
+    count: async (req, res) => {
+        try {
+            const { parentId } = req.query;
+
+            if (isNaN(parseInt(parentId))) {
+                return res.status(STATUS_CODES.BAD_REQUEST).json({ error: ERROR_MESSAGES.BAD_REQUEST });
+            }
+
+            // 1️⃣ Get partnerTenantId from customer table
+            const customer = await prisma.customer.findUnique({
+                where: { id: parseInt(parentId) },
+                select: { partnerTenantId: true }
+            });
+
+            if (!customer) {
+                return res.status(STATUS_CODES.NOT_FOUND).json({ error: ERROR_MESSAGES.USER_NOT_FOUND });
+            }
+
+            const partnerTenantId = customer.partnerTenantId;
+
+            // 2️⃣ Count enabled = true
+            const enabledCount = await prisma.device.count({
+                where: {
+                    partnerTenantId,
+                    enabled: true
+                }
+            });
+
+            // 3️⃣ Count enabled = false
+            const disabledCount = await prisma.device.count({
+                where: {
+                    partnerTenantId,
+                    enabled: false
+                }
+            });
+
+            // 4️⃣ Return counts
+            return res.status(STATUS_CODES.OK).json({
+                enabled: enabledCount,
+                disabled: disabledCount
+            });
+
+        } catch (error) {
+            console.error(error);
+            return res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+        }
+    },
+
+    policy: async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            if (isNaN(parseInt(id))) {
+                return res.status(STATUS_CODES.BAD_REQUEST).json({ error: ERROR_MESSAGES.BAD_REQUEST });
+            }
+
+            const get = await prisma.device.findFirst({
+                where: {
+                    id: parseInt(id),
+                },
+                select: {
+                    id: true,
+                    agentId: true,
+
+                }
+            });
+
+            console.log("get", get)
+
+
+            const result = await prisma.policy.findMany({
+                where: {
+                    agentId: get?.agentId,
+                },
+                select: {
+                    id: true,
+                    policyId: true,
+                    agentId: true,
+                    type: true,
+                    name: true,
+                    enabled: true,
+                }
+            });
+
+            console.log("result", result)
 
             if (!result) {
                 return res.status(STATUS_CODES.NOT_FOUND).json({ error: ERROR_MESSAGES.USER_NOT_FOUND });
