@@ -96,6 +96,10 @@ model Partner {
   tenantName   String?
   requestId    String?
   responseId   String?
+  contactName   String?
+  contactEmail   String?
+  PreferredSlot   String?
+  TimeZone   String?
   currentState String   @default("DISABLE") 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -115,7 +119,7 @@ model Customer {
 
 model Credential {
   id               Int      @id @default(autoincrement())
-  partnerTenantId   String   @unique
+  partnerTenantId   String   
   customerTenantId  String
   clientId          String
   clientSecret      String
@@ -124,3 +128,26 @@ model Credential {
   updatedAt         DateTime @updatedAt
 }
 
+model Settings {
+  id                     Int     @id @default(autoincrement())
+  customerLogInterval    Int     @default(5)
+  customerDeviceInterval Int     @default(12)
+  createdAt         DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model Device {
+  id               Int      @id @default(autoincrement())
+  partnerTenantId  String?
+  customerTenantId String?
+  agentId          String?
+  hostname         String?
+  hostId           String?
+  online           Boolean?
+  enabled          Boolean?
+  osFamily         String?
+  registrationDate DateTime?
+  units            Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}

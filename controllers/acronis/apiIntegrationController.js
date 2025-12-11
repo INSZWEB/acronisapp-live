@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require("uuid");
 const getApiIntegration = async (req, res) => {
     const { tenant_id, request_id, context, payload } = req.body;
 
-    // Generate new response_id for Acronis callback
+    // Generate response_id
     const response_id = uuidv4();
 
     if (!request_id) {
@@ -21,23 +21,28 @@ const getApiIntegration = async (req, res) => {
         return res.status(400).json({ response_id, message: "Missing required fields in payload/context" });
     }
 
+    // IMPORTANT: Declare existing here
+    let existing = null;
+
     try {
-        await prisma.credential.upsert({
-            where: { partnerTenantId },
-            update: {
-                customerTenantId,
-                clientId,
-                clientSecret,
-                datacenterUrl,
-            },
-            create: {
-                partnerTenantId,
-                customerTenantId,
-                clientId,
-                clientSecret,
-                datacenterUrl,
-            },
+        // Check if credential exists
+        existing = await prisma.credential.findFirst({
+            where: { clientId }
         });
+
+        // If not exists → create
+        if (!existing) {
+            await prisma.credential.create({
+                data: {
+                    partnerTenantId,
+                    customerTenantId,
+                    clientId,
+                    clientSecret,
+                    datacenterUrl
+                }
+            });
+        }
+
     } catch (err) {
         return res.status(500).json({ response_id, message: `Database error: ${err.message}` });
     }
@@ -48,7 +53,9 @@ const getApiIntegration = async (req, res) => {
         response_id,
         payload: {
             result: "success",
-            message: "API integration completed successfully",
+            message: existing
+                ? "Credential already exists, skipped update"
+                : "API integration completed successfully"
         },
     });
 };
