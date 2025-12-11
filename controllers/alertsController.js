@@ -263,6 +263,45 @@ const alertsController = {
             return res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
         }
     },
+        count: async (req, res) => {
+            try {
+                const { parentId } = req.query;
+    
+                if (isNaN(parseInt(parentId))) {
+                    return res.status(STATUS_CODES.BAD_REQUEST).json({ error: ERROR_MESSAGES.BAD_REQUEST });
+                }
+    
+                // 1️⃣ Get partnerTenantId from customer table
+                const customer = await prisma.customer.findUnique({
+                    where: { id: parseInt(parentId) },
+                    select: { partnerTenantId: true }
+                });
+    
+                if (!customer) {
+                    return res.status(STATUS_CODES.NOT_FOUND).json({ error: ERROR_MESSAGES.USER_NOT_FOUND });
+                }
+    
+                const partnerTenantId = customer.partnerTenantId;
+    
+                // 2️⃣ Count enabled = true
+                const enabledCount = await prisma.alertLog.count({
+                    where: {
+                        partnerTenantId,
+                    }
+                });
+    
+    
+                // 4️⃣ Return counts
+                return res.status(STATUS_CODES.OK).json({
+                    enabled: enabledCount
+                });
+    
+            } catch (error) {
+                console.error(error);
+                return res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+            }
+        },
+    
     update: async (req, res) => {
         try {
             const { id } = req.params;
