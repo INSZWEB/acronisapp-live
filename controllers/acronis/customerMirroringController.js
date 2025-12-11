@@ -80,7 +80,7 @@ const setState = async (req, res) => {
             },
         });
     }
-
+  
     return res.json({
         type: "cti.a.p.acgw.response.v1.1~a.p.customer.mirroring.set_state.ok.v1.0",
         request_id,

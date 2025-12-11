@@ -59,7 +59,7 @@ const getApiIntegration = async (req, res) => {
         },
     });
 };
-
+  
 module.exports = {
     getApiIntegration,
 };
