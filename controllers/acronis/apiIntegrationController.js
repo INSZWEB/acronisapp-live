@@ -22,22 +22,25 @@ const getApiIntegration = async (req, res) => {
     }
 
     try {
-        await prisma.credential.upsert({
-            where: { partnerTenantId },
-            update: {
-                customerTenantId,
-                clientId,
-                clientSecret,
-                datacenterUrl,
-            },
-            create: {
-                partnerTenantId,
-                customerTenantId,
-                clientId,
-                clientSecret,
-                datacenterUrl,
-            },
+        // Check if credential already exists
+        const existing = await prisma.credential.findFirst({
+            where: { partnerTenantId }
         });
+
+        // If exists — do NOT update, just return success
+        if (!existing) {
+            // Create new credential only if not exists
+            await prisma.credential.create({
+                data: {
+                    partnerTenantId,
+                    customerTenantId,
+                    clientId,
+                    clientSecret,
+                    datacenterUrl
+                }
+            });
+        }
+
     } catch (err) {
         return res.status(500).json({ response_id, message: `Database error: ${err.message}` });
     }
@@ -48,7 +51,9 @@ const getApiIntegration = async (req, res) => {
         response_id,
         payload: {
             result: "success",
-            message: "API integration completed successfully",
+            message: existing ? 
+                "Credential already exists, skipped update" :
+                "API integration completed successfully",
         },
     });
 };
