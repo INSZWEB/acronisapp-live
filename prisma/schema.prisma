@@ -124,6 +124,7 @@ model Credential {
   clientId          String
   clientSecret      String
   datacenterUrl     String
+  active        Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
@@ -150,4 +151,17 @@ model Device {
   units            Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+}
+
+
+model AlertLog {
+  id               Int      @id @default(autoincrement())
+  alertId          String   // Acronis alert ID
+  partnerTenantId  String
+  customerName  String
+  customerTenantId String
+  rawJson          Json
+  loggedAt         DateTime @default(now())
+    createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }

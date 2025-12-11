@@ -3,46 +3,82 @@ const axios = require("axios");
 const base64 = require("base-64");
 const fs = require("fs");
 const path = require("path");
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
 
 // --------------------------------------------
-// 1. CONFIG
+// CONFIG
 // --------------------------------------------
-const CLIENT_ID = "20224571-f106-4a1e-a2a6-a283ec427b55";
-const CLIENT_SECRET = "iurf4nmtpdejz4gwjyviqpifq4cciak7u3pttpdk775ix42kfq4u";
-const DC_URL = "https://eu8-cloud.acronis.com";
-
 const PREFERRED_ROOT = "/var/log/acronis_edr";
 const LOCAL_UPLOADS = path.join(__dirname, "uploads");
-const FETCH_INTERVAL_MINUTES = 5;
-const MAX_RUNS = 5; // Run 5 times
+// --------------------------------------------
+// GET INTERVAL FROM SETTINGS TABLE
+// --------------------------------------------
+async function getFetchInterval() {
+    try {
+        const settings = await prisma.settings.findUnique({
+            where: { id: 1 },
+        });
 
-let runCount = 0;
+        // If DB has no settings or value is null → default 5 minutes
+        return settings?.customerLogInterval ?? 5;
+    } catch (err) {
+        console.error("Error loading settings, defaulting to 5 minutes:", err.message);
+        return 5;
+    }
+}
+
+// --------------------------------------------
+// 1. LOAD CREDENTIALS FROM DATABASE
+// --------------------------------------------
+async function getCredentials() {
+    const cred = await prisma.credential.findFirst({
+        where: { active: true }
+    });
+
+    if (!cred) throw new Error("No active credentials found in DB");
+
+    return {
+        clientId: cred.clientId,
+        clientSecret: cred.clientSecret,
+        dcUrl: cred.datacenterUrl,
+        partnerTenantId: cred.partnerTenantId,
+        customerTenantId: cred.customerTenantId
+    };
+}
 
 // --------------------------------------------
 // 2. GET ACCESS TOKEN
 // --------------------------------------------
-async function getAccessToken() {
-    const tokenUrl = `${DC_URL}/bc/idp/token`;
-    const creds = base64.encode(`${CLIENT_ID}:${CLIENT_SECRET}`);
-    const headers = {
-        "Authorization": `Basic ${creds}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-    };
-    const data = new URLSearchParams({ grant_type: "client_credentials" }).toString();
+async function getAccessToken(creds) {
+    const url = `${creds.dcUrl}/bc/idp/token`;
+    const auth = base64.encode(`${creds.clientId}:${creds.clientSecret}`);
 
-    const response = await axios.post(tokenUrl, data, { headers });
+    const response = await axios.post(
+        url,
+        new URLSearchParams({ grant_type: "client_credentials" }).toString(),
+        {
+            headers: {
+                "Authorization": `Basic ${auth}`,
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
+        }
+    );
+
     return response.data.access_token;
 }
 
 // --------------------------------------------
 // 3. FETCH ALERTS
 // --------------------------------------------
-async function fetchAlerts(accessToken) {
-    const url = `${DC_URL}/api/alert_manager/v1/alerts`;
-    const headers = { Authorization: `Bearer ${accessToken}` };
-    const params = { severity: "or(warning,critical)" };
+async function fetchAlerts(creds, token) {
+    const url = `${creds.dcUrl}/api/alert_manager/v1/alerts`;
 
-    const response = await axios.get(url, { headers, params });
+    const response = await axios.get(url, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { severity: "or(warning,critical)" }
+    });
+
     return response.data.items || [];
 }
 
@@ -54,20 +90,18 @@ function convertToCEF(alert) {
     const severityMap = { info: 3, warning: 6, critical: 9, error: 8 };
     const cefSeverity = severityMap[(alert.severity || "").toLowerCase()] || 5;
 
-    const customerName = d.customerName || "UnknownCustomer";
-
     const extension = {
         cs1Label: "customerName",
-        cs1: customerName,
+        cs1: d.customerName || "UnknownCustomer",
         cs2Label: "rawEvent",
         cs2: JSON.stringify(alert),
         deviceCustomString1Label: "resourceId",
         deviceCustomString1: d.resourceId || "",
-        end: d.detectionTime || "",
+        end: d.detectionTime || ""
     };
 
     const escapeCEF = (v) =>
-        (v !== undefined && v !== null ? String(v) : "")
+        String(v || "")
             .replace(/\\/g, "\\\\")
             .replace(/\|/g, "\\|")
             .replace(/=/g, "\\=");
@@ -84,76 +118,122 @@ function convertToCEF(alert) {
         alert.id || "",
         d.incidentTrigger || "AcronisAlert",
         cefSeverity,
-        extensionStr,
+        extensionStr
     ].join("|");
 }
 
 // --------------------------------------------
-// 5. WRITE ALERT TO LOG
+// 5A. CHECK IF ALERT ALREADY IN FILE
+// --------------------------------------------
+function isAlertInFile(filePath, alertId) {
+    if (!fs.existsSync(filePath)) return false;
+    const content = fs.readFileSync(filePath, "utf8");
+    return content.includes(alertId);
+}
+
+// --------------------------------------------
+// 5B. WRITE ALERT TO LOG FILE CLEANLY
 // --------------------------------------------
 function writeAlertToLog(alert, customerName) {
     const cefMsg = convertToCEF(alert);
     const safeName = customerName.replace(/\./g, "_").replace(/\s+/g, "_");
 
-    let basePath;
+    let baseDir = PREFERRED_ROOT;
     try {
-        fs.mkdirSync(PREFERRED_ROOT, { recursive: true });
-        basePath = PREFERRED_ROOT;
+        fs.mkdirSync(baseDir, { recursive: true });
     } catch {
-        basePath = LOCAL_UPLOADS;
-        fs.mkdirSync(basePath, { recursive: true });
+        baseDir = LOCAL_UPLOADS;
+        fs.mkdirSync(baseDir, { recursive: true });
     }
 
-    const filename = path.join(basePath, `${safeName}.log`);
+    const filePath = path.join(baseDir, `${safeName}.log`);
 
-    // Check for duplicate alert ID
-    let alreadyLogged = false;
-    if (fs.existsSync(filename)) {
-        const fileContent = fs.readFileSync(filename, "utf8");
-        alreadyLogged = fileContent.includes(alert.id);
+    // Skip if already logged
+    if (isAlertInFile(filePath, alert.id)) {
+        console.log(`⚠ Alert ${alert.id} already logged in file.`);
+        return;
     }
 
-    if (!alreadyLogged) {
-        fs.appendFileSync(filename, cefMsg + "\n", "utf8");
-        console.log(`✔ Saved alert ${alert.id} → ${filename}`);
-    } else {
-        console.log(`⚠ Alert ${alert.id} already logged. Skipping.`);
-    }
+    fs.appendFileSync(filePath, cefMsg + "\n", "utf8");
+    console.log(`✔ Saved alert ${alert.id} → ${filePath}`);
 }
 
+// --------------------------------------------
+// 6. DB FUNCTIONS
+// --------------------------------------------
+async function isAlertAlreadySaved(alertId) {
+    const row = await prisma.alertLog.findFirst({ where: { alertId } });
+    return !!row;
+}
+
+async function saveAlertToDB(alert, creds) {
+    await prisma.alertLog.create({
+        data: {
+            alertId: alert.id,
+            customerName: alert.details?.customerName || "UnknownCustomer",
+            partnerTenantId: creds.partnerTenantId,
+            customerTenantId: creds.customerTenantId,
+            rawJson: alert
+        }
+    });
+}
 
 // --------------------------------------------
-// 6. PROCESS ALERTS
+// 7. MAIN PROCESS LOGIC
 // --------------------------------------------
 async function processAlerts() {
-    runCount++;
-    console.log(`\n[Run ${runCount}] ${new Date().toISOString()} - Processing alerts...`);
-
     try {
-        const token = await getAccessToken();
-        const alerts = await fetchAlerts(token);
+        const creds = await getCredentials();
+        const token = await getAccessToken(creds);
+        const alerts = await fetchAlerts(creds, token);
 
         console.log(`Fetched ${alerts.length} alerts.`);
-        alerts.forEach((alert) => {
-            const customerName = (alert.details && alert.details.customerName) || "UnknownCustomer";
+
+        for (const alert of alerts) {
+            const customerName = alert.details?.customerName || "UnknownCustomer";
+            const safeName = customerName.replace(/\./g, "_").replace(/\s+/g, "_");
+            const filePath = path.join(PREFERRED_ROOT, `${safeName}.log`);
+
+            // 1. DB duplicate check
+            if (await isAlertAlreadySaved(alert.id)) {
+                console.log(`⚠ Alert ${alert.id} already exists in DB.`);
+                continue;
+            }
+
+            // 2. File duplicate check
+            if (isAlertInFile(filePath, alert.id)) {
+                console.log(`⚠ Alert ${alert.id} already exists in log file.`);
+                continue;
+            }
+
+            // 3. Save log file
             writeAlertToLog(alert, customerName);
-        });
 
-        console.log(`✔ Run ${runCount} completed.`);
+            // 4. Save to DB
+            await saveAlertToDB(alert, creds);
+
+            console.log(`✔ Alert ${alert.id} saved → file & DB`);
+        }
     } catch (err) {
-        console.error("Error processing alerts:", err.message);
-    }
-
-    if (runCount >= MAX_RUNS) {
-        console.log(`\nReached maximum of ${MAX_RUNS} runs. Stopping connector.`);
-        clearInterval(interval);
+        console.error("❌ Error:", err.message);
     }
 }
 
 // --------------------------------------------
-// 7. START AUTOMATIC LOOP
+// 8. START LOOP
 // --------------------------------------------
-console.log(`Starting Acronis EDR connector, will run every ${FETCH_INTERVAL_MINUTES} minutes, up to ${MAX_RUNS} times...`);
-processAlerts(); // Run immediately
+(async () => {
+    const interval = await getFetchInterval();
 
-const interval = setInterval(processAlerts, FETCH_INTERVAL_MINUTES * 60 * 1000);
+    console.log(`Acronis EDR connector running every ${interval} minutes...`);
+
+    // Run immediately
+    processAlerts();
+
+    // Run on interval from DB
+    setInterval(async () => {
+        const newInterval = await getFetchInterval(); // Re-read in case settings changed
+        console.log(`Updated interval: ${newInterval} minutes`);
+        processAlerts();
+    }, interval * 60 * 1000);
+})();
