@@ -27,7 +27,7 @@ const getApiIntegration = async (req, res) => {
     try {
         // Check if credential exists
         existing = await prisma.credential.findFirst({
-            where: { partnerTenantId }
+            where: { clientId }
         });
 
         // If not exists → create
