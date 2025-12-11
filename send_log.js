@@ -55,3 +55,4 @@ function processLogs() {
 // -------------------- RUN ONCE --------------------
 console.log(`🚀 Sending all logs in ${LOG_DIR} to SIEM...`);
 processLogs();
+setInterval(processLogs, 5 * 60 * 1000);
