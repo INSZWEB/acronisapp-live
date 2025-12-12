@@ -30,11 +30,15 @@ const callbackMapping = {
 
 };
 
-// Single POST endpoint for all callbacks
 router.post("/", async (req, res) => {
-    const data = req.body;      // Equivalent to request.json()
+    const data = req.body;
 
-    console.log("Received data:", JSON.stringify(data, null, 2));  // Equivalent to Python logging
+    console.log("Received data:", {
+        request_id: data.request_id,
+        type: data.type,
+        payload: data.payload || "(no payload)",
+        context: data.context
+    });
 
     const callback_id = data.callback_id || data.context?.callback_id;
 
@@ -51,7 +55,7 @@ router.post("/", async (req, res) => {
     try {
         await handler(req, res);
     } catch (err) {
-        console.error("Handler error:", err);
+        console.error(err);
         return res.status(500).json({ message: "Internal server error" });
     }
 });
