@@ -1,14 +1,13 @@
 const { v4: uuidv4 } = require("uuid");
 const prisma = require("../../prismaClient");
 
-// ------------------------------
-// Customer Mirroring - GET STATE
-// ------------------------------
+/* ----------------------------------------------------
+   CUSTOMER MIRRORING - GET STATE
+   ---------------------------------------------------- */
 const getState = async (req, res) => {
     const { request_id } = req.body;
     const tenant_id = req.body?.tenant_id || req.body?.context?.tenant_id;
 
-    // Generate NEW response_id for Acronis callback
     const response_id = uuidv4();
 
     if (!tenant_id) {
@@ -18,28 +17,45 @@ const getState = async (req, res) => {
         });
     }
 
-    const rows = await prisma.partner.findMany({
-        where: { tenantId: tenant_id },
-        orderBy: { id: "desc" },
+    // Fetch all customers for this partner
+    const customers = await prisma.customer.findMany({
+        where: { partnerTenantId: tenant_id },
     });
 
-    const payload = rows.map(r => ({
-        vendor_tenant_id: String(r.id),
-        acronis_tenant_id: r.tenantId,
-        settings: {},
-    }));
+    // Prepare enabled / disabled lists
+    const enabled = [];
+    const disabled = [];
+
+    for (const c of customers) {
+        const entry = {
+            acronis_tenant_id: c.acronisCustomerTenantId,
+            acronis_tenant_name: c.acronisCustomerTenantName,
+            settings: {
+                enabled: c.status === "ENABLED",
+                ...c.settings,
+            }
+        };
+
+        if (c.status === "ENABLED") enabled.push(entry);
+        else disabled.push(entry);
+    }
 
     return res.json({
         type: "cti.a.p.acgw.response.v1.1~a.p.customer.mirroring.get_state.ok.v1.0",
         request_id,
         response_id,
-        payload,
+        payload: {
+            partner_tenant_id: tenant_id,
+            enabled,
+            disabled
+        }
     });
 };
 
-// ------------------------------
-// Customer Mirroring - SET STATE
-// ------------------------------
+
+/* ----------------------------------------------------
+   CUSTOMER MIRRORING - SET STATE
+   ---------------------------------------------------- */
 const setState = async (req, res) => {
     const { request_id, payload } = req.body;
     const tenant_id = req.body?.tenant_id || req.body?.context?.tenant_id;
@@ -53,16 +69,14 @@ const setState = async (req, res) => {
         });
     }
 
-    const partnerTenantName = payload?.partner_tenant_name || "";
-
     const enabledList = payload?.enabled || [];
     const disabledList = payload?.disabled || [];
 
     console.log("=== SET STATE PAYLOAD ===");
-    console.log("Enabled List:", enabledList);
-    console.log("Disabled List:", disabledList);
+    console.log("Enabled:", enabledList);
+    console.log("Disabled:", disabledList);
 
-    // Process ENABLED customers
+    // ENABLED
     for (const customer of enabledList) {
         const { acronis_tenant_id, acronis_tenant_name, settings } = customer;
         if (!acronis_tenant_id) continue;
@@ -71,40 +85,35 @@ const setState = async (req, res) => {
             where: { acronisCustomerTenantId: acronis_tenant_id },
             update: {
                 partnerTenantId: tenant_id,
-                partnerTenantName,
                 acronisCustomerTenantName: acronis_tenant_name,
                 status: "ENABLED",
-                settings,
+                settings
             },
             create: {
                 partnerTenantId: tenant_id,
-                partnerTenantName,
                 acronisCustomerTenantId: acronis_tenant_id,
                 acronisCustomerTenantName: acronis_tenant_name,
                 status: "ENABLED",
-                settings,
-            },
+                settings
+            }
         });
     }
 
-    // Process DISABLED customers
+    // DISABLED
     for (const customer of disabledList) {
         const { acronis_tenant_id } = customer;
         if (!acronis_tenant_id) continue;
 
         await prisma.customer.updateMany({
             where: { acronisCustomerTenantId: acronis_tenant_id },
-            data: {
-                status: "DISABLED",
-            },
+            data: { status: "DISABLED" }
         });
     }
-
 
     return res.json({
         type: "cti.a.p.acgw.response.v1.1~a.p.customer.mirroring.set_state.ok.v1.0",
         request_id,
-        response_id,
+        response_id
     });
 };
 
