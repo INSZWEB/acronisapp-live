@@ -27,11 +27,14 @@ const callbackMapping = {
     'cti.a.p.acgw.callback.v2.0~a.p.customer.mirroring.set_state.v1.0': customerSetState,
     'cti.a.p.acgw.callback.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration.v1.56': getApiIntegration,
     'cti.a.p.acgw.callback.v1.0~insightz_technology_pte_ltd.insightz_technology.customer_name_list.v1.56': customerNameList,
+    
 };
 
 // Single POST endpoint for all callbacks
 router.post("/", async (req, res) => {
-      console.log("Incoming Body:", req.body);
+      console.log("Headers:", req.headers);
+    console.log("Body:", JSON.stringify(req.body, null, 2));
+    
     const callback_id = req.body.callback_id || req.body.context?.callback_id;
 
     if (!callback_id) {

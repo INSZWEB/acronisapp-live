@@ -44,7 +44,6 @@ const setState = async (req, res) => {
     const { request_id, payload } = req.body;
     const tenant_id = req.body?.tenant_id || req.body?.context?.tenant_id;
 
-    // Generate NEW response_id for Acronis callback
     const response_id = uuidv4();
 
     if (!tenant_id) {
@@ -55,8 +54,15 @@ const setState = async (req, res) => {
     }
 
     const partnerTenantName = payload?.partner_tenant_name || "";
-    const enabledList = payload?.enabled || [];
 
+    const enabledList = payload?.enabled || [];
+    const disabledList = payload?.disabled || [];
+
+    console.log("=== SET STATE PAYLOAD ===");
+    console.log("Enabled List:", enabledList);
+    console.log("Disabled List:", disabledList);
+
+    // Process ENABLED customers
     for (const customer of enabledList) {
         const { acronis_tenant_id, acronis_tenant_name, settings } = customer;
         if (!acronis_tenant_id) continue;
@@ -80,13 +86,28 @@ const setState = async (req, res) => {
             },
         });
     }
-  
+
+    // Process DISABLED customers
+    for (const customer of disabledList) {
+        const { acronis_tenant_id } = customer;
+        if (!acronis_tenant_id) continue;
+
+        await prisma.customer.updateMany({
+            where: { acronisCustomerTenantId: acronis_tenant_id },
+            data: {
+                status: "DISABLED",
+            },
+        });
+    }
+
+
     return res.json({
         type: "cti.a.p.acgw.response.v1.1~a.p.customer.mirroring.set_state.ok.v1.0",
         request_id,
         response_id,
     });
 };
+
 
 module.exports = {
     getState,
