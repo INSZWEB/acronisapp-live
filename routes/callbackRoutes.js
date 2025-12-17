@@ -30,13 +30,85 @@ const callbackMapping = {
 
 };
 
-// Single POST endpoint for all callbacks
-router.post("/", async (req, res) => {
-    const data = req.body;      // Equivalent to request.json()
-     // ✅ Log headers
-    console.log("Received headers:", JSON.stringify(req.headers, null, 2));
+// Helper: decode base64 safely
+function decodeBase64(value) {
+    try {
+        return Buffer.from(value, "base64").toString("utf-8");
+    } catch (err) {
+        return null;
+    }
+}
 
-    console.log("Received data:", JSON.stringify(data, null, 2));  // Equivalent to Python logging
+// Helper: parse X-CyberApp-Auth
+function parseCyberAppAuth(headerValue) {
+    if (!headerValue) return null;
+
+    const decoded = decodeBase64(headerValue);
+    if (!decoded) return null;
+
+    // Split at FIRST colon only (important!)
+    const sepIndex = decoded.indexOf(":");
+    if (sepIndex === -1) return null;
+
+    const identity = decoded.slice(0, sepIndex);
+    const secretsRaw = decoded.slice(sepIndex + 1);
+
+    try {
+        const secrets = JSON.parse(secretsRaw);
+        return { identity, secrets };
+    } catch (err) {
+        console.error("❌ Failed to parse secrets JSON:", err);
+        return null;
+    }
+}
+
+// Helper: parse X-CyberApp-Extra
+function parseCyberAppExtra(headerValue) {
+    if (!headerValue) return {};
+
+    const decoded = decodeBase64(headerValue);
+    if (!decoded) return {};
+
+    try {
+        return JSON.parse(decoded);
+    } catch (err) {
+        console.error("❌ Failed to parse X-CyberApp-Extra JSON:", err);
+        return {};
+    }
+}
+
+// -------------------------------
+// Single POST endpoint for callbacks
+// -------------------------------
+router.post("/", async (req, res) => {
+    const data = req.body;
+
+    // -------------------------------
+    // Headers
+    // -------------------------------
+    const authHeader = req.headers.authorization; // Bearer <JWT>
+    const cyberAppAuthHeader = req.headers["x-cyberapp-auth"];
+    const cyberAppExtraHeader = req.headers["x-cyberapp-extra"];
+
+    console.log("🔹 Authorization Header:", authHeader);
+
+    // Decode X-CyberApp-Auth
+    const cyberAppAuth = parseCyberAppAuth(cyberAppAuthHeader);
+    if (cyberAppAuth) {
+        console.log("🔹 X-CyberApp-Auth Identity:", cyberAppAuth.identity);
+        console.log("🔹 X-CyberApp-Auth Secrets:", cyberAppAuth.secrets);
+    } else {
+        console.log("⚠️ X-CyberApp-Auth missing or invalid");
+    }
+
+    // Decode X-CyberApp-Extra
+    const cyberAppExtra = parseCyberAppExtra(cyberAppExtraHeader);
+    console.log("🔹 X-CyberApp-Extra (decoded):", cyberAppExtra);
+
+    // -------------------------------
+    // Body
+    // -------------------------------
+    console.log("🔹 Received Body:", JSON.stringify(data, null, 2));
 
     const callback_id = data.callback_id || data.context?.callback_id;
 
@@ -53,10 +125,11 @@ router.post("/", async (req, res) => {
     try {
         await handler(req, res);
     } catch (err) {
-        console.error("Handler error:", err);
+        console.error("❌ Handler error:", err);
         return res.status(500).json({ message: "Internal server error" });
     }
 });
+
 
 
 module.exports = router;
