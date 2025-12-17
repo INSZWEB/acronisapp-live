@@ -5,10 +5,10 @@ const { v4: uuidv4 } = require("uuid");
 
 const enable = async (req, res) => {
     const { request_id, context, payload } = req.body;
-    const extra = req.cyberAppExtra || {};
+   const extra = req.cyberAppExtra;
 
-    console.log("extra",extra)
-
+    console.log("✅ Extra inside enable():", extra);
+    
     const tenant_id = req.body?.tenant_id || context?.tenant_id;
     const response_id = uuidv4();
 

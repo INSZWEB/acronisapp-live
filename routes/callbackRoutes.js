@@ -103,6 +103,9 @@ router.post("/", async (req, res) => {
 
     // Decode X-CyberApp-Extra
     const cyberAppExtra = parseCyberAppExtra(cyberAppExtraHeader);
+    // IMPORTANT: attach to req
+    req.cyberAppExtra = cyberAppExtra;
+
     console.log("🔹 X-CyberApp-Extra (decoded):", cyberAppExtra);
 
     // -------------------------------
