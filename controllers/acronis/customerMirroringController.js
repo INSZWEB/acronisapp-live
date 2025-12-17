@@ -183,7 +183,7 @@ const setState = async (req, res) => {
     }
 
     // 2️⃣ Disable all other customers for this partner
-
+    /*
     await prisma.customer.updateMany({
         where: {
             partnerTenantId: tenant_id,
@@ -191,6 +191,12 @@ const setState = async (req, res) => {
         },
         data: { status: "DISABLED" },
     });
+
+
+
+    */
+
+
 
 
 
