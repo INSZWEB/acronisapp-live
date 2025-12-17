@@ -83,6 +83,12 @@ function parseCyberAppExtra(headerValue) {
 router.post("/", async (req, res) => {
     const data = req.body;
 
+    console.log("===== RAW CALLBACK START =====");
+    console.log("Callback ID:", data.callback_id || data.context?.callback_id);
+    console.log("Type:", data.type);
+    console.log("Payload:", JSON.stringify(data.payload, null, 2));
+    console.log("===== RAW CALLBACK END =====");
+
     // -------------------------------
     // Headers
     // -------------------------------
