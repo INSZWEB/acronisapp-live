@@ -5,10 +5,10 @@ const { v4: uuidv4 } = require("uuid");
 
 const enable = async (req, res) => {
     const { request_id, context, payload } = req.body;
-   const extra = req.cyberAppExtra;
+    const extra = req.cyberAppExtra;
 
     console.log("✅ Extra inside enable():", extra);
-    
+
     const tenant_id = req.body?.tenant_id || context?.tenant_id;
     const response_id = uuidv4();
 
@@ -156,23 +156,44 @@ const reset = async (req, res) => {
     const { request_id, response_id } = req.body;
     const tenant_id = req.body.tenant_id || req.body?.context?.tenant_id;
 
-    if (!tenant_id) return res.status(400).json({ response_id, message: "tenant_id missing" });
+    // ❌ Validation
+    if (!tenant_id) {
+        return res.status(400).json({
+            response_id,
+            message: "tenant_id missing",
+        });
+    }
 
     try {
+        // ✅ Disable Partner
         await prisma.partner.updateMany({
             where: { tenantId: tenant_id },
             data: { currentState: "DISABLED" },
         });
-    } catch (err) {
-        return res.status(500).json({ response_id, message: "Failed to disable partner/customers" });
+
+        // ✅ Disable ALL customers under this partner
+        await prisma.customer.updateMany({
+            where: { partnerTenantId: tenant_id },
+            data: { status: "DISABLED" },
+        });
+
+    } catch (error) {
+        console.error("Partner mirroring reset error:", error);
+        return res.status(500).json({
+            response_id,
+            message: "Failed to disable partner and customers",
+        });
     }
 
+    // ✅ Success response
     return res.json({
         type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.reset.ok.v1.0",
         request_id,
         response_id,
     });
 };
+
+
 
 module.exports = {
     enable,
