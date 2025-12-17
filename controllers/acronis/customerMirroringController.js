@@ -181,6 +181,8 @@ const setState = async (req, res) => {
         where: {
             partnerTenantId: tenant_id,
             acronisCustomerTenantId: { notIn: enabledIds },
+            status: { not: "ENABLED" }
+
         },
         data: { status: "DISABLED" },
     });
