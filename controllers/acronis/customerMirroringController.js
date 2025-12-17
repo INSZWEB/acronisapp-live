@@ -154,6 +154,12 @@ const setState = async (req, res) => {
     }
 
     const enabled = payload?.enabled || [];
+    const disabled = payload?.disabled || [];
+
+    console.log("=== Payload Received ===");
+    console.log("Enabled:", enabled);
+    console.log("Disabled:", disabled)
+
     const enabledIds = enabled.map(c => c.acronis_tenant_id);
 
     // 1️⃣ Upsert ENABLED customers
