@@ -5,10 +5,11 @@ const { v4: uuidv4 } = require("uuid");
 
 const enable = async (req, res) => {
     const { request_id, context, payload } = req.body;
+    const extra = req.cyberAppExtra || {};
+
+    console.log("extra",extra)
 
     const tenant_id = req.body?.tenant_id || context?.tenant_id;
-
-    // Generate NEW response_id for Acronis callback (important)
     const response_id = uuidv4();
 
     if (!tenant_id) {
@@ -18,7 +19,7 @@ const enable = async (req, res) => {
         });
     }
 
-    //const tenantName = payload?.tenant_name || context?.tenant_name;
+    // Tenant name resolution
     const tenantName =
         payload?.acronis_tenant_name ||
         payload?.tenant_name ||
@@ -26,6 +27,11 @@ const enable = async (req, res) => {
         context?.tenant_name ||
         null;
 
+    // ✅ Extract fields from X-CyberApp-Extra
+    const contactName = extra["Enter the name"] || null;
+    const contactEmail = extra["Enter the email"] || null;
+    const preferredSlot = extra["Timeslot"] || null;
+    const timeZone = extra["Time Zone"] || null;
 
     // Check if tenant already exists
     const existing = await prisma.partner.findFirst({
@@ -35,41 +41,52 @@ const enable = async (req, res) => {
     let entry;
 
     if (!existing) {
-        // Create only if not exists
         entry = await prisma.partner.create({
             data: {
                 tenantId: tenant_id,
                 tenantName,
                 requestId: request_id,
                 responseId: response_id,
-                currentState: "ENABLED"
-            },
+                currentState: "ENABLED",
+
+                // ✅ Store extra fields
+                contactName,
+                contactEmail,
+                PreferredSlot: preferredSlot,
+                TimeZone: timeZone
+            }
         });
     } else {
-        // entry = existing;
         entry = await prisma.partner.update({
             where: { id: existing.id },
             data: {
                 tenantName,
                 requestId: request_id,
                 responseId: response_id,
-                currentState: "ENABLED"
+                currentState: "ENABLED",
+
+                // ✅ Update extra fields
+                contactName,
+                contactEmail,
+                PreferredSlot: preferredSlot,
+                TimeZone: timeZone
             }
         });
     }
 
-    // Acronis expects EXACT schema (no created_at, no extra fields)
+    // Acronis expects strict response schema
     return res.json({
         type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.enable.ok.v1.0",
         request_id,
         response_id,
         payload: {
             state: "ENABLED",
-            vendor_tenant_id: String(entry.id),      // must be string
+            vendor_tenant_id: String(entry.id),
             acronis_tenant_id: entry.tenantId
         }
     });
 };
+
 
 
 // Partner Mirroring Get State
