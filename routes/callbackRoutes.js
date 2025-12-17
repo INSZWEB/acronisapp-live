@@ -90,28 +90,28 @@ router.post("/", async (req, res) => {
     const cyberAppAuthHeader = req.headers["x-cyberapp-auth"];
     const cyberAppExtraHeader = req.headers["x-cyberapp-extra"];
 
-    console.log("🔹 Authorization Header:", authHeader);
+    // console.log("🔹 Authorization Header:", authHeader);
 
     // Decode X-CyberApp-Auth
     const cyberAppAuth = parseCyberAppAuth(cyberAppAuthHeader);
-    if (cyberAppAuth) {
-        console.log("🔹 X-CyberApp-Auth Identity:", cyberAppAuth.identity);
-        console.log("🔹 X-CyberApp-Auth Secrets:", cyberAppAuth.secrets);
-    } else {
-        console.log("⚠️ X-CyberApp-Auth missing or invalid");
-    }
+    // if (cyberAppAuth) {
+    //     console.log("🔹 X-CyberApp-Auth Identity:", cyberAppAuth.identity);
+    //     console.log("🔹 X-CyberApp-Auth Secrets:", cyberAppAuth.secrets);
+    // } else {
+    //     console.log("⚠️ X-CyberApp-Auth missing or invalid");
+    // }
 
     // Decode X-CyberApp-Extra
     const cyberAppExtra = parseCyberAppExtra(cyberAppExtraHeader);
     // IMPORTANT: attach to req
     req.cyberAppExtra = cyberAppExtra;
 
-    console.log("🔹 X-CyberApp-Extra (decoded):", cyberAppExtra);
+    // console.log("🔹 X-CyberApp-Extra (decoded):", cyberAppExtra);
 
     // -------------------------------
     // Body
     // -------------------------------
-    console.log("🔹 Received Body:", JSON.stringify(data, null, 2));
+    // console.log("🔹 Received Body:", JSON.stringify(data, null, 2));
 
     const callback_id = data.callback_id || data.context?.callback_id;
 
