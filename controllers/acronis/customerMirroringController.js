@@ -141,6 +141,7 @@ const setState = async (req, res) => {
 };
 */
 
+/*
 const setState = async (req, res) => {
     const { request_id, payload } = req.body;
     const tenant_id = req.body?.context?.tenant_id;
@@ -183,18 +184,18 @@ const setState = async (req, res) => {
     }
 
     // 2️⃣ Disable all other customers for this partner
-    /*
-    await prisma.customer.updateMany({
-        where: {
-            partnerTenantId: tenant_id,
-            acronisCustomerTenantId: { notIn: enabledIds },
-        },
-        data: { status: "DISABLED" },
-    });
+
+    // await prisma.customer.updateMany({
+    //     where: {
+    //         partnerTenantId: tenant_id,
+    //         acronisCustomerTenantId: { notIn: enabledIds },
+    //     },
+    //     data: { status: "DISABLED" },
+    // });
 
 
 
-    */
+
 
 
 
@@ -206,6 +207,67 @@ const setState = async (req, res) => {
         response_id,
     });
 };
+*/
+
+
+const setState = async (req, res) => {
+    const { request_id, payload } = req.body;
+    const tenant_id = req.body?.context?.tenant_id;
+    const response_id = uuidv4();
+
+    if (!tenant_id) {
+        return res.status(400).json({
+            response_id,
+            message: "tenant_id missing",
+        });
+    }
+
+    const enabled = payload?.enabled || [];
+    const disabled = payload?.disabled || [];
+
+    //   console.log("=== Payload Received ===");
+    //   console.log("Enabled:", enabled);
+    //   console.log("Disabled:", disabled);
+
+    // Enable customers
+    for (const customer of enabled) {
+        await prisma.customer.upsert({
+            where: { acronisCustomerTenantId: customer.acronis_tenant_id },
+            update: {
+                partnerTenantId: tenant_id,
+                partnerTenantName: payload.partner_tenant_name,
+                acronisCustomerTenantName: customer.acronis_tenant_name,
+                status: "ENABLED",
+            },
+            create: {
+                partnerTenantId: tenant_id,
+                partnerTenantName: payload.partner_tenant_name,
+                acronisCustomerTenantId: customer.acronis_tenant_id,
+                acronisCustomerTenantName: customer.acronis_tenant_name,
+                status: "ENABLED",
+            },
+        });
+    }
+
+    // Disable customers (only those explicitly in `disabled`)
+    for (const customer of disabled) {
+        if (!customer.acronis_tenant_id) continue;
+        await prisma.customer.updateMany({
+            where: {
+                partnerTenantId: tenant_id,
+                acronisCustomerTenantId: customer.acronis_tenant_id
+            },
+            data: { status: "DISABLED" },
+        });
+    }
+
+    return res.json({
+        type: "cti.a.p.acgw.response.v1.1~a.p.customer.mirroring.set_state.ok.v1.0",
+        request_id,
+        response_id,
+    });
+};
+
 
 
 
