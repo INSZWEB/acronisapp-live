@@ -177,15 +177,17 @@ const setState = async (req, res) => {
     }
 
     // 2️⃣ Disable all other customers for this partner
-    await prisma.customer.updateMany({
-        where: {
-            partnerTenantId: tenant_id,
-            acronisCustomerTenantId: { notIn: enabledIds },
-            status: { not: "ENABLED" }
+    if (enabledIds.length > 0) {
+        await prisma.customer.updateMany({
+            where: {
+                partnerTenantId: tenant_id,
+                acronisCustomerTenantId: { notIn: enabledIds },
+                status: "ENABLED", // important
+            },
+            data: { status: "DISABLED" },
+        });
+    }
 
-        },
-        data: { status: "DISABLED" },
-    });
 
     return res.json({
         type: "cti.a.p.acgw.response.v1.1~a.p.customer.mirroring.set_state.ok.v1.0",
