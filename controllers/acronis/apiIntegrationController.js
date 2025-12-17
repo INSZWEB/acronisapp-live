@@ -48,7 +48,7 @@ const getApiIntegration = async (req, res) => {
     }
 
     return res.json({
-        type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.ins_dev.api_integration_api_success.v1.54",
+        type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration_api_success.v1.56",
         request_id,
         response_id,
         payload: {
@@ -59,7 +59,7 @@ const getApiIntegration = async (req, res) => {
         },
     });
 };
-
+  
 module.exports = {
     getApiIntegration,
 };
