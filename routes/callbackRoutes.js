@@ -33,6 +33,8 @@ const callbackMapping = {
 // Single POST endpoint for all callbacks
 router.post("/", async (req, res) => {
     const data = req.body;      // Equivalent to request.json()
+     // ✅ Log headers
+    console.log("Received headers:", JSON.stringify(req.headers, null, 2));
 
     console.log("Received data:", JSON.stringify(data, null, 2));  // Equivalent to Python logging
 
