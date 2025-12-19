@@ -81,7 +81,7 @@ function parseCyberAppExtra(headerValue) {
 // -------------------------------
 // Single POST endpoint for callbacks
 // -------------------------------
-router.post("/",acronisCallbackAuth, async (req, res) => {
+router.post("/", acronisCallbackAuth, async (req, res) => {
     const data = req.body;
 
     console.log("===== RAW CALLBACK START =====");
@@ -90,7 +90,8 @@ router.post("/",acronisCallbackAuth, async (req, res) => {
     console.log("Payload:", JSON.stringify(data.payload, null, 2));
     console.log("===== RAW CALLBACK END =====");
 
-    console.log("req.headers",req.headers)
+    console.log("req.headers", req.headers);
+    console.log("req.body:", JSON.stringify( req.body, null, 2));
 
     // -------------------------------
     // Headers
@@ -99,7 +100,7 @@ router.post("/",acronisCallbackAuth, async (req, res) => {
     const cyberAppAuthHeader = req.headers["x-cyberapp-auth"];
     const cyberAppExtraHeader = req.headers["x-cyberapp-extra"];
 
-//    console.log("🔹 Authorization Header:", authHeader);
+    //    console.log("🔹 Authorization Header:", authHeader);
 
     // Decode X-CyberApp-Auth
     const cyberAppAuth = parseCyberAppAuth(cyberAppAuthHeader);
