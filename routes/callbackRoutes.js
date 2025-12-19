@@ -14,6 +14,7 @@ const {
 
 const { getApiIntegration } = require("../controllers/acronis/apiIntegrationController");
 const { customerNameList } = require("../controllers/acronis/customerNameListController");
+const acronisCallbackAuth = require("../middlewares/acronisCallbackAuth");
 
 const router = express.Router();
 
@@ -80,7 +81,7 @@ function parseCyberAppExtra(headerValue) {
 // -------------------------------
 // Single POST endpoint for callbacks
 // -------------------------------
-router.post("/", async (req, res) => {
+router.post("/",acronisCallbackAuth, async (req, res) => {
     const data = req.body;
 
     console.log("===== RAW CALLBACK START =====");
@@ -89,6 +90,8 @@ router.post("/", async (req, res) => {
     console.log("Payload:", JSON.stringify(data.payload, null, 2));
     console.log("===== RAW CALLBACK END =====");
 
+    console.log("req.headers",req.headers)
+
     // -------------------------------
     // Headers
     // -------------------------------
@@ -96,7 +99,7 @@ router.post("/", async (req, res) => {
     const cyberAppAuthHeader = req.headers["x-cyberapp-auth"];
     const cyberAppExtraHeader = req.headers["x-cyberapp-extra"];
 
-    // console.log("🔹 Authorization Header:", authHeader);
+//    console.log("🔹 Authorization Header:", authHeader);
 
     // Decode X-CyberApp-Auth
     const cyberAppAuth = parseCyberAppAuth(cyberAppAuthHeader);
