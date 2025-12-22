@@ -29,7 +29,6 @@ function getKey(header, callback) {
 module.exports = function acronisCallbackAuth(req, res, next) {
     const authHeader = req.headers.authorization;
 
-    // 1️⃣ Authorization header must exist
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
         return res.status(401).json({
             message: "Missing or invalid Authorization header",
@@ -38,7 +37,19 @@ module.exports = function acronisCallbackAuth(req, res, next) {
 
     const token = authHeader.replace("Bearer ", "");
 
-    // 2️⃣ Verify JWT signature + standard claims
+    // Decode JWT without verifying for development logging
+    if (true) {
+        try {
+            const decodedDebug = jwt.decode(token, { complete: true });
+            console.log("===== DEV JWT DECODE =====");
+            console.log(JSON.stringify(decodedDebug, null, 2));
+            console.log("===== END DEV JWT =====");
+        } catch (err) {
+            console.warn("❌ Failed to decode JWT:", err.message);
+        }
+    }
+
+    // Verify JWT (production + dev)
     jwt.verify(
         token,
         getKey,
@@ -55,11 +66,7 @@ module.exports = function acronisCallbackAuth(req, res, next) {
                 });
             }
 
-            // 3️⃣ Scope / endpoint verification
-            const endpointId =
-                req.body?.context?.endpoint_id ||
-                req.body?.endpoint_id;
-
+            const endpointId = req.body?.context?.endpoint_id || req.body?.endpoint_id;
             if (!endpointId) {
                 return res.status(400).json({
                     message: "endpoint_id missing in request body",
@@ -68,9 +75,7 @@ module.exports = function acronisCallbackAuth(req, res, next) {
 
             const hasValidScope =
                 Array.isArray(decoded.scope) &&
-                decoded.scope.some(
-                    (s) => s.role === endpointId
-                );
+                decoded.scope.some((s) => s.role === endpointId);
 
             if (!hasValidScope) {
                 return res.status(403).json({
@@ -78,9 +83,7 @@ module.exports = function acronisCallbackAuth(req, res, next) {
                 });
             }
 
-            // Attach decoded token to request (optional)
             req.acronisJwt = decoded;
-
             next();
         }
     );

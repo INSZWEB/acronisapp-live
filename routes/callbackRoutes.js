@@ -81,8 +81,8 @@ function parseCyberAppExtra(headerValue) {
 // -------------------------------
 // Single POST endpoint for callbacks
 // -------------------------------
-// router.post("/", acronisCallbackAuth, async (req, res) => {
-router.post("/", async (req, res) => {
+router.post("/", acronisCallbackAuth, async (req, res) => {
+
     const data = req.body;
 
     console.log("===== RAW CALLBACK START =====");
