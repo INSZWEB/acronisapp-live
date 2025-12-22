@@ -38,16 +38,16 @@ module.exports = function acronisCallbackAuth(req, res, next) {
     const token = authHeader.replace("Bearer ", "");
 
     // Decode JWT without verifying for development logging
-    if (true) {
-        try {
-            const decodedDebug = jwt.decode(token, { complete: true });
-            console.log("===== DEV JWT DECODE =====");
-            console.log(JSON.stringify(decodedDebug, null, 2));
-            console.log("===== END DEV JWT =====");
-        } catch (err) {
-            console.warn("❌ Failed to decode JWT:", err.message);
-        }
-    }
+    // if (true) {
+    //     try {
+    //         const decodedDebug = jwt.decode(token, { complete: true });
+    //         console.log("===== DEV JWT DECODE =====");
+    //         console.log(JSON.stringify(decodedDebug, null, 2));
+    //         console.log("===== END DEV JWT =====");
+    //     } catch (err) {
+    //         console.warn("❌ Failed to decode JWT:", err.message);
+    //     }
+    // }
 
     // Verify JWT (production + dev)
     jwt.verify(
