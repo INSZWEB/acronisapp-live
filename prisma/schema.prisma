@@ -120,7 +120,7 @@ model Customer {
 model Credential {
   id               Int      @id @default(autoincrement())
   partnerTenantId   String   
-  customerTenantId  String
+  customerTenantId  String?
   clientId          String
   clientSecret      String
   datacenterUrl     String
