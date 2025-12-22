@@ -16,7 +16,7 @@ const getApiIntegration = async (req, res) => {
     const clientSecret = payload?.secret_key;
     const datacenterUrl = payload?.data_center_url;
 
-    if (!partnerTenantId || !clientId || !clientSecret || !datacenterUrl || !customerTenantId) {
+    if (!partnerTenantId || !clientId || !clientSecret || !datacenterUrl) {
         return res.status(400).json({ response_id, message: "Missing required fields in payload/context" });
     }
 
