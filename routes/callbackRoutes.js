@@ -26,10 +26,11 @@ const callbackMapping = {
     'cti.a.p.acgw.callback.v2.0~a.p.partner.mirroring.reset.v1.0': partnerReset,
     'cti.a.p.acgw.callback.v2.0~a.p.customer.mirroring.get_state.v1.0': customerGetState,
     'cti.a.p.acgw.callback.v2.0~a.p.customer.mirroring.set_state.v1.0': customerSetState,
-    'cti.a.p.acgw.callback.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration.v1.67': getApiIntegration,
-    // 'cti.a.p.acgw.callback.v1.0~insightz_technology_pte_ltd.insightz_technology.customer_name_list.v1.56': customerNameList,
+    'cti.a.p.acgw.callback.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration.v1.70': getApiIntegration,
+    'cti.a.p.acgw.callback.v1.0~insightz_technology_pte_ltd.insightz_technology.customer_name_list.v1.70': customerNameList,
 
 };
+
 
 // Helper: decode base64 safely
 function decodeBase64(value) {
@@ -143,7 +144,5 @@ router.post("/", acronisCallbackAuth, async (req, res) => {
         return res.status(500).json({ message: "Internal server error" });
     }
 });
-
-
 
 module.exports = router;

@@ -17,8 +17,9 @@ const getApiIntegration = async (req, res) => {
     const clientId = payload?.client_id;
     const clientSecret = payload?.secret_key;
     const datacenterUrl = payload?.data_center_url;
+    const customerTenantId = payload?.customer_name;
 
-    if (!partnerTenantId || !clientId || !clientSecret || !datacenterUrl) {
+    if (!partnerTenantId || !clientId || !clientSecret || !datacenterUrl || !customerTenantId) {
         return res.status(400).json({
             response_id,
             message: "Missing required fields in payload/context"
@@ -35,7 +36,7 @@ const getApiIntegration = async (req, res) => {
         // ❌ Already exists → ERROR response
         if (existingCredential) {
             return res.json({
-                type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration_api_error.v1.67",
+                type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration_api_error.v1.70",
                 request_id,
                 response_id,
                 payload: {
@@ -49,6 +50,7 @@ const getApiIntegration = async (req, res) => {
         await prisma.credential.create({
             data: {
                 partnerTenantId,
+                customerTenantId,
                 clientId,
                 clientSecret,
                 datacenterUrl
@@ -57,7 +59,7 @@ const getApiIntegration = async (req, res) => {
 
         // ✅ Success response
         return res.json({
-            type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration_api_success.v1.67",
+            type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration_api_success.v1.70",
             request_id,
             response_id,
             payload: {
@@ -71,7 +73,7 @@ const getApiIntegration = async (req, res) => {
 
     } catch (err) {
         return res.status(500).json({
-            type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration_api_error.v1.67",
+            type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration_api_error.v1.70",
             request_id,
             response_id,
             payload: {
