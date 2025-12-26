@@ -82,7 +82,7 @@ const customerController = {
                 where: { id: parnterId }
             });
 
-         
+
             if (!partner) {
                 return res.status(404).json({ error: "Partner not found" });
             }
@@ -142,8 +142,8 @@ const customerController = {
 
             const totalPages = Math.ceil(totalCount / limit);
 
-         
-            
+
+
             return res.status(STATUS_CODES.OK).json({
                 data: result,
                 pagination: {
@@ -222,6 +222,77 @@ const customerController = {
             res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
         }
     },
+
+
+    selectSiderbar: async (req, res) => {
+        try {
+            const page = parseInt(req.query.page) || ERROR_MESSAGES.DEFAULT_PAGE;
+            const limit = parseInt(req.query.limit) || ERROR_MESSAGES.DEFAULT_LIMIT;
+            const searchKeyword = req.query.searchKeyword || '';
+            const searchStatus = req.query.searchStatus || '';
+            const customerId = req.query.customerId || '';
+            const searchKeywordLower = searchKeyword.toLowerCase();
+
+            if (page <= 0 || limit <= 0) {
+                return res.status(STATUS_CODES.BAD_REQUEST).json({ error: MESSAGES.INVALID_PAGINATION_PARAMETERS });
+            }
+
+            const skip = (page - 1) * limit;
+
+            // Initialize whereCondition
+            const whereCondition = {
+                AND: [
+                    {
+                        OR: [
+                            { acronisCustomerTenantName: { contains: searchKeywordLower } },
+                        ]
+                    }
+                ]
+            };
+
+            // If customerId is provided, fetch partnerTenantId and add filter
+            if (customerId) {
+                const customer = await prisma.customer.findUnique({
+                    where: { id: parseInt(customerId) },
+                    select: { partnerTenantId: true }
+                });
+
+                if (customer && customer.partnerTenantId) {
+                    whereCondition.AND.push({ partnerTenantId: customer.partnerTenantId });
+                }
+            }
+
+            const [totalCount, result] = await Promise.all([
+                prisma.customer.count({ where: whereCondition }),
+                prisma.customer.findMany({
+                    where: whereCondition,
+                    select: {
+                        id: true,
+                        acronisCustomerTenantName: true,
+                    },
+                    skip: skip,
+                    take: limit,
+                    orderBy: { id: 'desc' }
+                })
+            ]);
+
+            const totalPages = Math.ceil(totalCount / limit);
+
+            res.status(STATUS_CODES.OK).json({
+                data: result,
+                pagination: {
+                    totalCount,
+                    totalPages,
+                    currentPage: page,
+                    pageSize: limit
+                }
+            });
+        } catch (error) {
+            console.error(error);
+            res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+        }
+    },
+
 
     view: async (req, res) => {
         try {

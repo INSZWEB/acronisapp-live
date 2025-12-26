@@ -238,6 +238,7 @@ const parnterController = {
                     currentState: true,
                     contactName: true,
                     contactEmail: true,
+                    preferredDate:true,
                     PreferredSlot: true,
                     TimeZone: true,
 
