@@ -130,6 +130,17 @@ model Credential {
   updatedAt         DateTime @updatedAt
 }
 
+model ParnterCredential {
+  id               Int      @id @default(autoincrement())
+  partnerTenantId   String   
+  clientId          String
+  clientSecret      String
+  datacenterUrl     String
+  active        Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
 model Settings {
   id                     Int     @id @default(autoincrement())
   customerLogInterval    Int     @default(5)
@@ -217,4 +228,36 @@ model DevicePolicy {
 enum PolicyCategory {
   PLAN
   POLICY
+}
+
+
+model ParnterContact {
+  id         Int      @id @default(autoincrement())  // Auto-increment primary key
+  apiId             String   @unique
+  apiCreatedAt         DateTime? 
+  apiUpdatedAt         DateTime?
+  email             String?  
+  address1          String?
+  address2          String?
+  country           String?
+  state             String?
+  city              String?
+  zipcode           String?
+  phone             String?
+  firstname         String?
+  lastname          String?
+  title             String?
+  website           String?
+  industry          String?
+  organizationSize  String?
+  emailConfirmed    Boolean?
+  aan               String?
+  fax               String?
+  language          String?
+  types             String?
+  deletedAt         DateTime? 
+  tenantId          String?
+  userId            String?
+   createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }

@@ -20,6 +20,8 @@ const settingsRoutes = require("./routes/settingsRoutes");
 const devicesRoutes = require("./routes/devicesRoutes.js");
 const alertsRoutes = require("./routes/alertsRoutes.js");
 const devicePolicyRoutes = require("./routes/devicePolicyRoutes.js");
+const parnterContactRoutes = require("./routes/parnterContactRoutes.js");
+const reportRoutes = require('./routes/reportRoutes.js');
 
 app.use(express.json());
 // Add CORS middleware
@@ -76,6 +78,8 @@ app.use("/settings", settingsRoutes);
 app.use('/devices',devicesRoutes);
 app.use("/alerts",alertsRoutes);
 app.use("/devicepolicy",devicePolicyRoutes);
+app.use("/parntercontact",parnterContactRoutes);
+app.use("/report",reportRoutes)
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

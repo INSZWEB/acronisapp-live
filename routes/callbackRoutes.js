@@ -13,6 +13,7 @@ const {
 } = require("../controllers/acronis/customerMirroringController");
 
 const { getApiIntegration } = require("../controllers/acronis/apiIntegrationController");
+const { getParnterApiIntegration } = require("../controllers/acronis/parnterApiIntegrationController");
 const { customerNameList } = require("../controllers/acronis/customerNameListController");
 const acronisCallbackAuth = require("../middlewares/acronisCallbackAuth");
 
@@ -26,8 +27,9 @@ const callbackMapping = {
     'cti.a.p.acgw.callback.v2.0~a.p.partner.mirroring.reset.v1.0': partnerReset,
     'cti.a.p.acgw.callback.v2.0~a.p.customer.mirroring.get_state.v1.0': customerGetState,
     'cti.a.p.acgw.callback.v2.0~a.p.customer.mirroring.set_state.v1.0': customerSetState,
-    'cti.a.p.acgw.callback.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration.v1.83': getApiIntegration,
-    'cti.a.p.acgw.callback.v1.0~insightz_technology_pte_ltd.insightz_technology.customer_name_list.v1.83': customerNameList,
+    'cti.a.p.acgw.callback.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration.v1.85': getApiIntegration,
+    'cti.a.p.acgw.callback.v1.0~insightz_technology_pte_ltd.insightz_technology.partner_api_integration.v1.85': getParnterApiIntegration,
+    'cti.a.p.acgw.callback.v1.0~insightz_technology_pte_ltd.insightz_technology.customer_name_list.v1.85': customerNameList,
 
 };
 

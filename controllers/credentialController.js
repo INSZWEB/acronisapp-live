@@ -171,6 +171,61 @@ const credentialController = {
             });
         }
     },
+    parnterlist: async (req, res) => {
+        try {
+            const searchKeyword = req.query.searchKeyword || '';
+            const parnterId = parseInt(req.query.parnterId);
+
+            if (!parnterId) {
+                return res.status(400).json({ error: "parnterId is required" });
+            }
+
+            // 1️⃣ Fetch Partner
+            const partner = await prisma.partner.findFirst({
+                where: { id: parnterId }
+            });
+
+            if (!partner) {
+                return res.status(404).json({ error: "Partner not found" });
+            }
+
+            const partnerTenantId = partner.tenantId;
+
+            // 2️⃣ Build filter
+            const whereCondition = {
+                partnerTenantId: partnerTenantId
+            };
+
+            if (searchKeyword.trim() !== "") {
+                whereCondition.clientId = {
+                    contains: searchKeyword,
+                };
+            }
+
+            // 3️⃣ Fetch ALL credentials (no pagination)
+            const result = await prisma.parnterCredential.findMany({
+                where: whereCondition,
+                select: {
+                    id: true,
+                    clientId: true,
+                    datacenterUrl: true,
+                    active: true,
+                    createdAt: true
+                },
+                orderBy: { id: 'desc' }
+            });
+
+            return res.status(STATUS_CODES.OK).json({
+                data: result
+            });
+
+        } catch (error) {
+            console.error(error);
+            return res.status(STATUS_CODES.INTERNAL_ERROR).json({
+                error: ERROR_MESSAGES.INTERNAL_ERROR
+            });
+        }
+    },
 
 
 

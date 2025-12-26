@@ -8,6 +8,7 @@ const apiMiddleware = require('../middlewares/apiMiddleware');
 
 router.post('/add',apiMiddleware, commonMiddleware, credentialController.add);
 router.get('/list',apiMiddleware, credentialController.listall);
+router.get('/parnter/list',apiMiddleware, credentialController.parnterlist);
 router.get('/select', credentialController.select);
 router.put('/update/:id',apiMiddleware, commonMiddleware, credentialController.update);
 router.get('/view/:id',apiMiddleware, credentialController.view);
