@@ -29,7 +29,7 @@ const customerNameList = async (req, res) => {
     }));
 
     return res.json({
-        type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.customer_name_list_ok.v1.88",
+        type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.customer_name_list_ok.v1.91",
         request_id,
         response_id,
         payload: { items },

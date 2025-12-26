@@ -84,12 +84,12 @@ const getParnterApiIntegration = async (req, res) => {
 
         // Respond success
         return res.json({
-            type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.partner_api_integration_partner_api_success.v1.88",
+            type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.partner_api_integration_partner_api_success.v1.91",
             request_id,
             response_id,
             payload: {
                 "result": "success",
-                "sucess_message": "API integration completed successfully",
+                "message": "API integration completed successfully",
                 "client_id": "",
                 "secret_key": "",
                 "data_center_url": "",
@@ -97,15 +97,16 @@ const getParnterApiIntegration = async (req, res) => {
         });
 
     } catch (err) {
-        return res.status(500).json({
-            type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.partner_api_integration_partner_api_success.v1.88",
-            request_id,
-            response_id,
-            payload: {
-                result: "error",
-                message: `Error: ${err.message}`
-            }
-        });
+        console.log("error",err.message)
+        // return res.status(500).json({
+        //     type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.partner_api_integration_partner_api_success.v1.88",
+        //     request_id,
+        //     response_id,
+        //     payload: {
+        //         result: "error",
+        //         message: `Error: ${err.message}`
+        //     }
+        // });
     }
 };
 
