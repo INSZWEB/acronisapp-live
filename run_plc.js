@@ -3,6 +3,17 @@ const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 
+
+// -----------------------------
+// Get Interval from Settings
+// -----------------------------
+async function getIntervalHours() {
+  const settings = await prisma.settings.findUnique({ where: { id: 1 } });
+  // Default to 12 hours if null
+  return settings?.customerPolicyInterval ?? 2;
+}
+
+
 // -------------------------------------------
 // 1. LOAD ACTIVE CREDENTIALS
 // -------------------------------------------
@@ -16,10 +27,10 @@ async function getCredentials() {
 // 2. ACRONIS API HELPERS
 // -------------------------------------------
 async function getToken(cred) {
-  const TOKEN_URL = `${cred.datacenterUrl}/api/2/idp/token`;
+  const url = `${cred.datacenterUrl}/api/2/idp/token`;
 
   const res = await axios.post(
-    TOKEN_URL,
+    url,
     new URLSearchParams({ grant_type: "client_credentials" }),
     {
       auth: {
@@ -40,6 +51,9 @@ async function apiGet(url, token, params = {}) {
   return res.data;
 }
 
+// -------------------------------------------
+// 3. FETCH DATA
+// -------------------------------------------
 async function fetchAgents(token, cred) {
   const url = `${cred.datacenterUrl}/api/agent_manager/v2/agents`;
   const data = await apiGet(url, token);
@@ -48,111 +62,141 @@ async function fetchAgents(token, cred) {
 
 async function fetchResources(token, cred) {
   const url = `${cred.datacenterUrl}/api/resource_management/v4/resources`;
-  const data = await apiGet(url, token, { limit: 500 });
+  const data = await apiGet(url, token);
   return data.items || [];
 }
 
-async function fetchPolicies(token, cred, resourceId) {
-  const url = `${cred.datacenterUrl}/api/policy_management/v4/policies`;
-  const params = { applicable_to_context_id: resourceId };
-  const data = await apiGet(url, token, params);
+async function fetchPolicies(token, cred) {
+  const url = `${cred.datacenterUrl}/api/policy_management/v4/applications`;
+  const data = await apiGet(url, token);
   return data.items || [];
 }
 
-// -------------------------------------------
-// 3. MATCH AGENTS → RESOURCES
-// -------------------------------------------
-function mapAgentsToResources(agents, resources) {
-  const mapping = {};
-
-  for (const a of agents) {
-    const ahost = (a.hostname || "").toLowerCase();
-
-    for (const r of resources) {
-      const rhost = (r.hostname || r.name || "").toLowerCase();
-
-      if (ahost === rhost) {
-        mapping[a.id] = r;
-        break;
-      }
-    }
-  }
-
-  return mapping;
-}
-
-// -------------------------------------------
-// 4. SAVE TO POLICY TABLE
-// -------------------------------------------
-async function savePolicyRecord(policy, cred, agentId, resourceId) {
-  return prisma.policy.create({
-    data: {
-      policyId: policy.id,
-      createdAtAcronis: policy.created_at,
-      updatedAtAcronis: policy.updated_at,
-      type: policy.type,
-      name: policy.name,
-      origin: policy.origin,
-      enabled: policy.enabled,
-
-      partnerTenantId: cred.partnerTenantId,
-      customerTenantId: cred.customerTenantId,
-
-      agentId,
-      resourceId,
-    },
+async function fetchPolicyDetails(token, cred, policyId) {
+  const url = `${cred.datacenterUrl}/api/policy_management/v4/policies/${policyId}`;
+  return apiGet(url, token, {
+    include_settings: true,
+    full_composite: true,
   });
 }
 
 // -------------------------------------------
-// 5. MAIN EXECUTION
+// 4. HELPERS
 // -------------------------------------------
-async function main() {
+function mapResourcesByAgentId(resources) {
+  const map = {};
+  for (const r of resources) {
+    if (r.agent_id) map[r.agent_id] = r;
+  }
+  return map;
+}
+
+async function getDevice(agent, cred) {
+  return prisma.device.findFirst({
+    where: {
+      agentId: agent.id,
+      customerTenantId: cred.customerTenantId,
+    },
+  });
+}
+
+async function saveDevicePolicy(data) {
+  return prisma.devicePolicy.upsert({
+    where: {
+      deviceId_policyId: {
+        deviceId: data.deviceId,
+        policyId: data.policyId,
+      },
+    },
+    update: data,
+    create: data,
+  });
+}
+
+// -------------------------------------------
+// 5. MAIN
+// -------------------------------------------
+async function processAllCredentials() {
+  const policyCache = new Map();
+
+  const PLAN_TYPES = [
+    "policy.protection.total",
+    "policy.backup.machine",
+  ];
+
   try {
     const credentials = await getCredentials();
-
-    if (credentials.length === 0) {
-      console.log("❌ No active credentials found.");
+    if (!credentials.length) {
+      console.log("❌ No active credentials found");
       return;
     }
 
     for (const cred of credentials) {
-      console.log(
-        `\n==================== CUSTOMER ${cred.customerTenantId} ====================`
-      );
+      console.log(`\n===== CUSTOMER ${cred.customerTenantId} =====`);
 
       const token = await getToken(cred);
 
       const agents = await fetchAgents(token, cred);
       const resources = await fetchResources(token, cred);
+      const policies = await fetchPolicies(token, cred);
 
-      const mapping = mapAgentsToResources(agents, resources);
+      const flatPolicies = policies.flat();
+      const resourceByAgentId = mapResourcesByAgentId(resources);
 
-      for (const ag of agents) {
-        const agentId = ag.id;
-        const resource = mapping[agentId];
-
+      for (const agent of agents) {
+        const resource = resourceByAgentId[agent.id];
         if (!resource) continue;
 
-        const resourceId = resource.id;
-        const policies = await fetchPolicies(token, cred, resourceId);
-
-        // Loop through policy containers
-        for (const container of policies) {
-          const policyList = container.policy || [];
-
-          for (const pol of policyList) {
-            await savePolicyRecord(pol, cred, agentId, resourceId);
-            console.log(`✔ Saved policy ${pol.id} for agent ${agentId}`);
-          }
+        const device = await getDevice(agent, cred);
+        if (!device) {
+          console.warn(`⚠ Device not found for agent ${agent.id}`);
+          continue;
         }
-      }
 
-      console.log("\n✔✔✔ Completed for customer:", cred.customerTenantId, "\n");
+        const agentPolicies = flatPolicies.filter(
+          p =>
+            p.agent_id === agent.id &&
+            p.context?.id === resource.id
+        );
+
+        for (const pol of agentPolicies) {
+          let policyDef = policyCache.get(pol.policy.id);
+
+          if (!policyDef) {
+            policyDef = await fetchPolicyDetails(
+              token,
+              cred,
+              pol.policy.id
+            );
+            policyCache.set(pol.policy.id, policyDef);
+          }
+
+          const policyObj = policyDef.policy?.[0];
+
+          const category = PLAN_TYPES.includes(pol.policy.type)
+            ? "PLAN"
+            : "POLICY";
+
+          await saveDevicePolicy({
+            deviceId: device.id,
+            agentId: agent.id,
+            policyId: pol.policy.id,
+            policyName: policyObj?.name || null,
+            policyType: pol.policy.type,
+            enabled: pol.enabled,
+            category,
+            customerTenantId: cred.customerTenantId,
+            resourceId: resource.id,
+          });
+        }
+
+        console.log(
+          `✔ Saved ${agentPolicies.length} policies for ${device.hostname}`
+        );
+      }
     }
 
-    console.log("=============== ALL DONE ===============");
-
+    console.log("\n=============== ALL DONE ===============");
   } catch (err) {
     console.error("ERROR:", err.response?.data || err.message);
   } finally {
@@ -160,4 +204,24 @@ async function main() {
   }
 }
 
-main();
+
+
+
+// -----------------------------
+// Schedule Job Every N Hours
+// -----------------------------
+(async function scheduleJob() {
+  const intervalHours = await getIntervalHours();
+  const intervalMs = intervalHours * 60 * 60 * 1000; // convert hours → ms
+
+  console.log(`Policy sync will run every ${intervalHours} hour(s).`);
+
+  // Run immediately
+  await processAllCredentials();
+
+  // Schedule interval
+  setInterval(async () => {
+    console.log(`Running policy sync at ${new Date().toISOString()}`);
+    await processAllCredentials();
+  }, intervalMs);
+})();

@@ -38,6 +38,7 @@ async function fetchAgents(token, dcUrl) {
   const resp = await axios.get(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
+  // console.log("resp.data.items", resp.data.items)
   return resp.data.items || [];
 }
 
@@ -70,15 +71,15 @@ function normalizeAgent(agent) {
 // Process Credentials and Store Devices
 // -----------------------------
 async function processAllCredentials() {
-const credentials = await prisma.credential.findMany({
-  select: {
-    partnerTenantId: true,
-    customerTenantId: true,
-    clientId: true,
-    clientSecret: true,
-    datacenterUrl: true,
-  },
-});
+  const credentials = await prisma.credential.findMany({
+    select: {
+      partnerTenantId: true,
+      customerTenantId: true,
+      clientId: true,
+      clientSecret: true,
+      datacenterUrl: true,
+    },
+  });
 
 
   for (const cred of credentials) {
@@ -94,8 +95,26 @@ const credentials = await prisma.credential.findMany({
       for (const agent of agents) {
         const normalized = normalizeAgent(agent);
 
-        await prisma.device.create({
-          data: {
+        await prisma.device.upsert({
+          where: {
+            customerTenantId_agentId: {
+              customerTenantId: cred.customerTenantId,
+              agentId: normalized.agent_id,
+            },
+          },
+          update: {
+            partnerTenantId: cred.partnerTenantId,
+            hostname: normalized.hostname,
+            hostId: normalized.host_id,
+            online: normalized.online,
+            enabled: normalized.enabled,
+            osFamily: normalized.os_family,
+            registrationDate: normalized.registration_date
+              ? new Date(normalized.registration_date)
+              : null,
+            units: normalized.units,
+          },
+          create: {
             partnerTenantId: cred.partnerTenantId,
             customerTenantId: cred.customerTenantId,
             agentId: normalized.agent_id,
@@ -110,6 +129,7 @@ const credentials = await prisma.credential.findMany({
             units: normalized.units,
           },
         });
+
       }
 
       console.log(`Stored ${agents.length} agents for ${cred.partnerTenantId}`);

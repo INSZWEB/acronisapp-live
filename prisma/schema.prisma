@@ -100,6 +100,7 @@ model Partner {
   contactEmail   String?
   PreferredSlot   String?
   TimeZone   String?
+  preferredDate  DateTime?
   currentState String   @default("DISABLE") 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -133,6 +134,7 @@ model Settings {
   id                     Int     @id @default(autoincrement())
   customerLogInterval    Int     @default(5)
   customerDeviceInterval Int     @default(12)
+  customerPolicyInterval Int     @default(2)
   createdAt         DateTime @default(now())
   updatedAt              DateTime @updatedAt
 }
@@ -151,7 +153,11 @@ model Device {
   units            Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  policies         DevicePolicy[]
+  @@unique([customerTenantId, agentId])
 }
+
 
 
 model AlertLog {
@@ -186,4 +192,29 @@ model Policy {
 
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+}
+
+model DevicePolicy {
+  id               Int      @id @default(autoincrement())
+  deviceId         Int
+  agentId          String?
+  policyId         String
+  policyName       String?
+  policyType       String
+  enabled          Boolean
+  category         PolicyCategory
+  resourceId       String?
+  customerTenantId String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  device           Device   @relation(fields: [deviceId], references: [id])
+
+  @@unique([deviceId, policyId])
+}
+
+enum PolicyCategory {
+  PLAN
+  POLICY
 }

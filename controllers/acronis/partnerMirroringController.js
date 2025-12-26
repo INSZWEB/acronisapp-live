@@ -32,6 +32,7 @@ const enable = async (req, res) => {
     const contactEmail = extra["Enter the email"] || null;
     const preferredSlot = extra["Timeslot"] || null;
     const timeZone = extra["Time Zone"] || null;
+    const preferredDate = extra["enter the date"] || null;
 
     // Check if tenant already exists
     const existing = await prisma.partner.findFirst({
@@ -53,7 +54,8 @@ const enable = async (req, res) => {
                 contactName,
                 contactEmail,
                 PreferredSlot: preferredSlot,
-                TimeZone: timeZone
+                TimeZone: timeZone,
+                preferredDate: new Date(preferredDate)
             }
         });
     } else {
@@ -69,7 +71,8 @@ const enable = async (req, res) => {
                 contactName,
                 contactEmail,
                 PreferredSlot: preferredSlot,
-                TimeZone: timeZone
+                TimeZone: timeZone,
+                preferredDate: new Date(preferredDate)
             }
         });
     }
