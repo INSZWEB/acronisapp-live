@@ -88,8 +88,11 @@ const getParnterApiIntegration = async (req, res) => {
             request_id,
             response_id,
             payload: {
-                result: "success",
-                message: "API integration completed successfully",
+                "result": "success",
+                "message": "API integration completed successfully",
+                "client_id": "",
+                "secret_key": "",
+                "data_center_url": "",
             }
         });
 
