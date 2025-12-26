@@ -84,7 +84,7 @@ const getParnterApiIntegration = async (req, res) => {
 
         // Respond success
         return res.json({
-            type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.partner_api_integration_partner_api_success.v1.85",
+            type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.partner_api_integration_partner_api_success.v1.88",
             request_id,
             response_id,
             payload: {
@@ -95,7 +95,7 @@ const getParnterApiIntegration = async (req, res) => {
 
     } catch (err) {
         return res.status(500).json({
-            type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.partner_api_integration_partner_api_success.v1.85",
+            type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.partner_api_integration_partner_api_success.v1.88",
             request_id,
             response_id,
             payload: {

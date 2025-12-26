@@ -2,6 +2,16 @@ const prisma = require("../../prismaClient");
 const { v4: uuidv4 } = require("uuid");
 
 // Partner Mirroring Enable
+function parseDDMMYYYY(dateStr) {
+    if (!dateStr) return null;
+
+    const [day, month, year] = dateStr.split(".").map(Number);
+    if (!day || !month || !year) return null;
+
+    const date = new Date(Date.UTC(year, month - 1, day));
+
+    return isNaN(date.getTime()) ? null : date;
+}
 
 const enable = async (req, res) => {
     const { request_id, context, payload } = req.body;
@@ -32,7 +42,9 @@ const enable = async (req, res) => {
     const contactEmail = extra["Enter the email"] || null;
     const preferredSlot = extra["Timeslot"] || null;
     const timeZone = extra["Time Zone"] || null;
-    const preferredDate = extra["enter the date"] || null;
+    const preferredDateRaw = extra["enter the date"] || null;
+    const preferredDate = parseDDMMYYYY(preferredDateRaw);
+
 
     // Check if tenant already exists
     const existing = await prisma.partner.findFirst({
@@ -55,7 +67,8 @@ const enable = async (req, res) => {
                 contactEmail,
                 PreferredSlot: preferredSlot,
                 TimeZone: timeZone,
-                preferredDate: new Date(preferredDate)
+                preferredDate: preferredDate ?? null
+
             }
         });
     } else {
@@ -72,7 +85,8 @@ const enable = async (req, res) => {
                 contactEmail,
                 PreferredSlot: preferredSlot,
                 TimeZone: timeZone,
-                preferredDate: new Date(preferredDate)
+                preferredDate: preferredDate ?? null
+
             }
         });
     }
