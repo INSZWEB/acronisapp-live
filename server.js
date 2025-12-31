@@ -22,8 +22,14 @@ const alertsRoutes = require("./routes/alertsRoutes.js");
 const devicePolicyRoutes = require("./routes/devicePolicyRoutes.js");
 const parnterContactRoutes = require("./routes/parnterContactRoutes.js");
 const reportRoutes = require('./routes/reportRoutes.js');
+const customerContactRoutes = require('./routes/customerContactRoutes.js');
+const invoiceRoutes = require('./routes/invoiceRoutes.js');
+const contractRoutes = require('./routes/contractRoutes.js');
+const categoryRoutes = require('./routes/categoryRoutes.js');
 
-app.use(express.json());
+//app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // Add CORS middleware
 
 app.use(cors({
@@ -79,7 +85,11 @@ app.use('/devices',devicesRoutes);
 app.use("/alerts",alertsRoutes);
 app.use("/devicepolicy",devicePolicyRoutes);
 app.use("/parntercontact",parnterContactRoutes);
-app.use("/report",reportRoutes)
+app.use("/report",reportRoutes);
+app.use("/customercontact",customerContactRoutes);
+app.use("/invoice",invoiceRoutes);
+app.use("/contract",contractRoutes);
+app.use("/category",categoryRoutes)
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

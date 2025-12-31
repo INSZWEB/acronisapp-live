@@ -119,6 +119,7 @@ const alertsController = {
                         customerName: true,
                         customerTenantId: true,
                         loggedAt: true,
+                        rawJson:true
 
                     },
                     skip,
@@ -129,9 +130,25 @@ const alertsController = {
 
 
 
+            const data = result.map(item => ({
+                id: item.id,
+                alertId: item.alertId,
+                customerName: item.customerName,
+                loggedAt: item.loggedAt,
+                rawJson:item.rawJson,
+
+                // prefer column value, fallback to rawJson
+                severity: item.severity ?? item.rawJson?.severity ?? null,
+                type: item.type ?? item.rawJson?.type ?? null,
+                category: item.category ?? item.rawJson?.category ?? null,
+
+                // extracted ONLY from rawJson
+                resourceName: item.rawJson?.details?.resourceName ?? null,
+                verdict: item.rawJson?.details?.verdict ?? null
+            }));
 
             return res.status(STATUS_CODES.OK).json({
-                data: result,
+                data: data,
                 pagination: {
                     totalCount,
                     totalPages: Math.ceil(totalCount / limit),
@@ -317,7 +334,40 @@ const alertsController = {
         }
     },
 
+    parentcount: async (req, res) => {
+        try {
+            // 2️⃣ Fetch all alert logs for this partnerTenantId
+            const logs = await prisma.alertLog.findMany({
+                select: { rawJson: true },
+            });
 
+            // 3️⃣ Count by severity
+            const severityCount = {
+                warning: 0,
+                critical: 0,
+                others: 0,
+            };
+
+            logs.forEach((log) => {
+                const severity = log.rawJson?.severity?.toLowerCase();
+                if (severity === "warning") severityCount.warning += 1;
+                else if (severity === "critical") severityCount.critical += 1;
+                else severityCount.others += 1;
+            });
+
+            // 4️⃣ Convert to array for frontend charts
+            const result = [
+                { changeType: "Warning", count: severityCount.warning },
+                { changeType: "Critical", count: severityCount.critical },
+                { changeType: "Others", count: severityCount.others },
+            ];
+
+            return res.status(STATUS_CODES.OK).json(result);
+        } catch (error) {
+            console.error(error);
+            return res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+        }
+    },
     update: async (req, res) => {
         try {
             const { id } = req.params;

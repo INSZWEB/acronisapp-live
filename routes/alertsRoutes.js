@@ -10,6 +10,7 @@ router.post('/add',apiMiddleware, commonMiddleware, alertsController.add);
 router.get('/list',apiMiddleware, alertsController.listall);
 router.get('/select', alertsController.select);
 router.get('/count', alertsController.count);
+router.get('/parentcount', alertsController.parentcount);
 router.put('/update/:id',apiMiddleware, commonMiddleware, alertsController.update);
 router.get('/view/:id',apiMiddleware, alertsController.view);
 router.delete('/delete/:id',apiMiddleware, alertsController.delete);

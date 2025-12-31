@@ -173,6 +173,7 @@ async function saveAlertToDB(alert, creds) {
             customerName: alert.details?.customerName || "UnknownCustomer",
             partnerTenantId: creds.partnerTenantId,
             customerTenantId: creds.customerTenantId,
+            receivedAt:alert.receivedAt,
             rawJson: alert
         }
     });

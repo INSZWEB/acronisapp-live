@@ -116,6 +116,9 @@ model Customer {
   settings                  Json?
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
+  customer_contact  CustomerContact[]  @relation("customer_contact")
+  emergency_escalation EmergencyEscalation[] @relation("emergency_escalation")
+  customer_contract CustomerContract[]  @relation("customer_contract")
 }
 
 model Credential {
@@ -178,6 +181,7 @@ model AlertLog {
   customerName  String
   customerTenantId String
   rawJson          Json
+  receivedAt     DateTime?
   loggedAt         DateTime @default(now())
     createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -228,6 +232,7 @@ model DevicePolicy {
 enum PolicyCategory {
   PLAN
   POLICY
+  BACKUP
 }
 
 
@@ -260,4 +265,66 @@ model ParnterContact {
   userId            String?
    createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+
+model CustomerContact {
+  id         Int      @id @default(autoincrement())  // Auto-increment primary key
+  contactMode  String?  
+  name        String?
+  email        String?
+  mobile     String?
+ customerId Int?
+ customers  Customer?  @relation("customer_contact", fields: [customerId], references: [id])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model EmergencyEscalation {
+  id         Int      @id @default(autoincrement())  // Auto-increment primary key
+emergencyMode  String?  
+  whatsapp        String?
+  teams        String?
+ customerId Int? @unique
+ customers  Customer?  @relation("emergency_escalation", fields: [customerId], references: [id])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model CustomerContract {
+  id         Int      @id @default(autoincrement())  // Auto-increment primary key
+  startDate  DateTime?  
+  endDate        DateTime?
+  installationId     String?
+  name     String?
+  serialNumber     String?
+  customerId Int? @unique
+  customers  Customer?  @relation("customer_contract", fields: [customerId], references: [id])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Plan {
+  id               Int      @id @default(autoincrement())
+  customerTenantId String
+  policyId         String
+  planName         String?
+  planType         String
+  enabled          Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([customerTenantId, policyId])
+}
+
+
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  alias     String?
+  disabled  Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

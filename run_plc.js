@@ -80,6 +80,23 @@ async function fetchPolicyDetails(token, cred, policyId) {
   });
 }
 
+async function fetchPolicyApplications(token, cred) {
+  const url = `${cred.datacenterUrl}/api/policy_management/v4/applications`;
+
+  return apiGet(url, token, {
+    policy_type: "policy.protection.total",
+    deployment_states: "deployed",
+  });
+}
+
+async function fetchPolicyMaster(token, cred, policyId) {
+  const url = `${cred.datacenterUrl}/api/policy_management/v4/policies/${policyId}`;
+  const data = await apiGet(url, token);
+
+  return data.policy?.[0] || null;
+}
+
+
 // -------------------------------------------
 // 4. HELPERS
 // -------------------------------------------
@@ -113,16 +130,90 @@ async function saveDevicePolicy(data) {
   });
 }
 
+
+async function savePlan({
+  customerTenantId,
+  policyId,
+  planName,
+  planType,
+  enabled,
+}) {
+  return prisma.plan.upsert({
+    where: {
+      customerTenantId_policyId: {
+        customerTenantId,
+        policyId,
+      },
+    },
+    update: {
+      planName,
+      planType,
+      enabled,
+    },
+    create: {
+      customerTenantId,
+      policyId,
+      planName,
+      planType,
+      enabled,
+    },
+  });
+}
+
+
 // -------------------------------------------
 // 5. MAIN
 // -------------------------------------------
+
+async function syncPlans(token, cred) {
+  const policyCache = new Map();
+console.log("token",token)
+  const appData = await fetchPolicyApplications(token, cred);
+  console.log("appData", appData)
+  const flatApps = appData.items?.flat() || [];
+
+  for (const app of flatApps) {
+    const policyId = app.policy.id;
+
+    let policyMaster = policyCache.get(policyId);
+
+    if (!policyMaster) {
+      policyMaster = await fetchPolicyMaster(token, cred, policyId);
+      policyCache.set(policyId, policyMaster);
+    }
+
+    if (!policyMaster) continue;
+
+    await savePlan({
+      customerTenantId: cred.customerTenantId,
+      policyId,
+      planName: policyMaster.name,
+      planType: policyMaster.type,
+      enabled: app.enabled,
+    });
+  }
+
+  console.log(
+    `✔ Synced ${flatApps.length} plans for customer ${cred.customerTenantId}`
+  );
+}
+
 async function processAllCredentials() {
   const policyCache = new Map();
 
   const PLAN_TYPES = [
     "policy.protection.total",
+  ];
+
+  const BACKUP_TYPES = [
     "policy.backup.machine",
   ];
+
+  function resolvePolicyCategory(type) {
+    if (PLAN_TYPES.includes(type)) return "PLAN";
+    if (BACKUP_TYPES.includes(type)) return "BACKUP";
+    return "POLICY";
+  }
 
   try {
     const credentials = await getCredentials();
@@ -131,11 +222,16 @@ async function processAllCredentials() {
       return;
     }
 
+
     for (const cred of credentials) {
       console.log(`\n===== CUSTOMER ${cred.customerTenantId} =====`);
 
       const token = await getToken(cred);
 
+      // ✅ 1. Sync Plans
+      await syncPlans(token, cred);
+
+      // ✅ 2. Sync Device Policies
       const agents = await fetchAgents(token, cred);
       const resources = await fetchResources(token, cred);
       const policies = await fetchPolicies(token, cred);
@@ -148,10 +244,7 @@ async function processAllCredentials() {
         if (!resource) continue;
 
         const device = await getDevice(agent, cred);
-        if (!device) {
-          console.warn(`⚠ Device not found for agent ${agent.id}`);
-          continue;
-        }
+        if (!device) continue;
 
         const agentPolicies = flatPolicies.filter(
           p =>
@@ -172,10 +265,9 @@ async function processAllCredentials() {
           }
 
           const policyObj = policyDef.policy?.[0];
+          const category = resolvePolicyCategory(pol.policy.type);
 
-          const category = PLAN_TYPES.includes(pol.policy.type)
-            ? "PLAN"
-            : "POLICY";
+
 
           await saveDevicePolicy({
             deviceId: device.id,
@@ -199,11 +291,8 @@ async function processAllCredentials() {
     console.log("\n=============== ALL DONE ===============");
   } catch (err) {
     console.error("ERROR:", err.response?.data || err.message);
-  } finally {
-    await prisma.$disconnect();
   }
 }
-
 
 
 

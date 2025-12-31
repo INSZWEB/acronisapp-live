@@ -1,238 +1,600 @@
-const pdf = require("html-pdf");
+const pdf = require("html-pdf"); // npm install html-pdf
 
-// Controller function for generating customer report
+const fs = require("fs");
+const path = require("path");
+
+
+// const generateCustomerReport = async (req, res) => {
+//   try {
+//     const { chartImage } = req.body;
+
+//     if (!chartImage) {
+//       return res.status(400).send("Chart image is required");
+//     }
+
+//     const html = `
+//       <html>
+//       <head>
+//         <meta charset="utf-8"/>
+//         <style>
+//           body { font-family: Arial, sans-serif; font-size: 12px; }
+//           .chart-container { text-align: center; margin-top: 30px; }
+//           .chart-container img { width: 100%; max-width: 700px; }
+//         </style>
+//       </head>
+//       <body>
+//         <div class="chart-container">
+//           <h3>Customer Usage Report</h3>
+//           <img src="${chartImage}" />
+//         </div>
+//       </body>
+//       </html>
+//     `;
+
+//     const browser = await puppeteer.launch({
+//       args: ["--no-sandbox", "--disable-setuid-sandbox"],
+//     });
+
+//     const page = await browser.newPage();
+
+//     // ✅ Use DOMContentLoaded and disable timeout
+//     await page.setContent(html, {
+//       waitUntil: "domcontentloaded",
+//       timeout: 0,
+//     });
+
+//     const pdfBuffer = await page.pdf({
+//       format: "A4",
+//       printBackground: true,
+//       margin: { top: "10mm", bottom: "10mm", left: "10mm", right: "10mm" },
+//     });
+
+//     await browser.close();
+
+//     res.set({
+//       "Content-Type": "application/pdf",
+//       "Content-Disposition": "inline; filename=customer-report.pdf",
+//       "Content-Length": pdfBuffer.length,
+//     });
+
+//     res.send(pdfBuffer);
+
+//   } catch (err) {
+//     console.error("PDF error:", err);
+//     res.status(500).send("Error generating PDF");
+//   }
+// };
+
+// Helper function
+const formatDateTime = (isoString) => {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (isNaN(d)) return isoString; // fallback if invalid
+  const pad = (n) => n.toString().padStart(2, "0");
+  const day = pad(d.getDate());
+  const month = pad(d.getMonth() + 1);
+  const year = d.getFullYear();
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  const seconds = pad(d.getSeconds());
+  return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+};
+
+
 const generateCustomerReport = async (req, res) => {
-    try {
-        // Static fallback data
-        const invoiceData = req.body && Object.keys(req.body).length ? req.body : {
-            invoiceNo: "INV-1001",
-            invoiceDate: "2025-12-26",
-            page: 1,
-            customerName: "John Doe",
-            customerAddress: "123 Orchard Road, Singapore 238890",
-            items: [
-                { partNo: "P001", description: "Laptop Dell Inspiron", qty: 2, unitPrice: 1200.00, amount: 2400.00 },
-                { partNo: "P002", description: "Wireless Mouse Logitech", qty: 3, unitPrice: 50.00, amount: 150.00 },
-                { partNo: "P003", description: "Keyboard Mechanical", qty: 1, unitPrice: 100.00, amount: 100.00 }
-            ],
-            total: 2650.00,
-            gst: 238.50,
-            grandTotal: 2888.50
-        };
+  try {
+    const { chartImage } = req.body;
+    const { customerId, month, startMonth, endMonth, year } = req.query;
 
-        if (!Array.isArray(invoiceData.items)) {
-            return res.status(400).send("Invalid invoice data: 'items' array is required");
-        }
+    if (!customerId) return res.status(400).send("customerId is required");
 
-        // HTML template
-        const html = `
-        <!DOCTYPE html>
+    const now = new Date();
+    const y = year ? Number(year) : now.getFullYear();
+    let start, end;
+
+    if (month) {
+      start = new Date(y, month - 1, 1);
+      end = new Date(y, month, 0, 23, 59, 59);
+    } else if (startMonth && endMonth) {
+      start = new Date(y, startMonth - 1, 1);
+      end = new Date(y, endMonth, 0, 23, 59, 59);
+    } else if (year) {
+      start = new Date(y, 0, 1);
+      end = new Date(y, 11, 31, 23, 59, 59);
+    } else {
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    }
+
+    const customer = await prisma.customer.findUnique({
+      where: { id: Number(customerId) },
+      select: {
+        acronisCustomerTenantId: true,
+        acronisCustomerTenantName: true,
+      },
+    });
+
+    if (!customer?.acronisCustomerTenantId)
+      return res.status(404).json({ message: "Customer not found" });
+
+    const tenantId = customer.acronisCustomerTenantId;
+
+    const devices = await prisma.device.findMany({
+      where: { customerTenantId: tenantId },
+      include: {
+        policies: { where: { enabled: true }, select: { category: true, policyName: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const totalDevices = devices.length;
+    const onlineDevices = devices.filter(d => d.online).length;
+    const offlineDevices = devices.filter(d => d.online === false).length;
+    const disabledDevices = devices.filter(d => d.enabled === false).length;
+
+    // -------------------
+    // Device Rows
+    // -------------------
+    const deviceRows = devices.map(d => `
+<tr>
+  <td>${d.hostname ?? "-"}</td>
+  <td>${d.osFamily ?? "-"}</td>
+  <td class="${d.online ? "ok" : "warn"}">${d.online ? "Online" : "Offline"}</td>
+  <td class="${d.enabled ? "ok" : "err"}">${d.enabled ? "Enabled" : "Disabled"}</td>
+  <td>${d.registrationDate ? new Date(d.registrationDate).toLocaleString() : new Date(d.createdAt).toLocaleString()}</td>
+</tr>`).join("");
+
+    // -------------------
+    // Policy Rows
+    // -------------------
+    const policyRows = devices.flatMap(d =>
+      d.policies.map(p => `
+<tr>
+  <td>${d.hostname ?? "-"}</td>
+  <td>${p.category ?? "-"}</td>
+  <td>${p.policyName ?? "-"}</td>
+</tr>`)).join("");
+
+    // -------------------
+    // Alerts
+    // -------------------
+    const alerts = await prisma.alertLog.findMany({
+      where: {
+        customerTenantId: tenantId,
+        receivedAt: { gte: start.toISOString(), lte: end.toISOString() },
+      },
+      select: { alertId: true, rawJson: true },
+      orderBy: { id: "desc" },
+    });
+
+    // Utility function
+    function humanize(str) {
+      if (!str) return "-";
+      // Insert space before each uppercase letter except first, e.g. BackupFailed -> Backup Failed
+      return str.replace(/([A-Z])/g, " $1").replace(/^ /, "");
+    }
+
+
+    const alertRows = alerts.map(a => `
+<tr>
+  <td>${a.rawJson?.receivedAt ? new Date(a.rawJson.receivedAt).toLocaleString() : "-"}</td>
+  <td>${a.rawJson?.severity ?? "-"}</td>
+<td>${humanize(a.rawJson?.type)}</td>
+  <td>${a.rawJson?.category ?? "-"}</td>
+  <td>${a.rawJson?.details?.resourceName ?? "-"}</td>
+  <td>${a.rawJson?.details?.verdict ?? "-"}</td>
+</tr>`).join("");
+
+    let periodLabel = month
+      ? `${new Date(y, month - 1).toLocaleString("default", { month: "long" })} ${y}`
+      : startMonth && endMonth
+        ? `${new Date(y, startMonth - 1).toLocaleString("default", { month: "long" })} – ${new Date(y, endMonth - 1).toLocaleString("default", { month: "long" })} ${y}`
+        : year
+          ? `Year ${y}`
+          : new Date().toLocaleString("default", { month: "long", year: "numeric" });
+
+
+    const html = `
+<!DOCTYPE html>
 <html>
-
 <head>
-    <meta charset="utf-8" />
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-        }
+<meta charset="utf-8"/>
+<style>
+/* ---------------------------
+   A4 Page Setup
+--------------------------- */
 
-        .header {
-            display: flex;
-            justify-content: space-between;
-        }
 
-        .logo {
-            width: 150px;
-        }
+html, body {
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  color: #333;
+}
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
+/* Headings */
+h2, h3 {
+  text-align: center;
+}
 
-        th,
-        td {
-            border: 1px solid #000;
-            padding: 6px;
-        }
+/* Sub headings and period */
+.sub, .period {
+  text-align: center;
+  font-size: 11px;
+  color: #666;
+}
 
-        th {
-            background: #f2f2f2;
-        }
+/* Logo */
+img {
+  display: block;
+  margin: 6px auto;
+  max-width: 720px;
+}
 
-        .right {
-            text-align: right;
-            margin-top: 15px;
-        }
-    </style>
+/* Summary cards */
+.summary {
+  display: flex;
+  justify-content: space-between;
+  margin: 8px 0 12px;
+}
+.card {
+  width: 23%;
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: center;
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  page-break-inside: auto;
+}
+th, td {
+  border: 1px solid #ccc;
+  padding: 6px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+th { background:#f4f6f8; }
+
+.ok { color:green; font-weight:bold; }
+.warn { color:orange; font-weight:bold; }
+.err { color:red; font-weight:bold; }
+
+tr { page-break-inside: avoid; }
+
+.page-break {
+  page-break-before: always;
+}
+</style>
 </head>
 
 <body>
-    <table width="100%" style="border: none;">
-        <tr>
-            <!-- LEFT: LOGO + COMPANY -->
-            <td width="75%" style="border: none; vertical-align: top;">
-                <img src="http://localhost:3000/assets/logo/Insightzlogo.png"
-                    style="width:200px; margin-bottom:10px;" />
 
-            </td>
-
-            <!-- RIGHT: INVOICE INFO -->
-            <td width="25%" style="border: none; text-align: end; vertical-align: top;">
-                <div style="text-align: start; font-size: 13px;">
-                    <p style="margin:0;"><b>Insightz Technology Pte Ltd</b></p>
-                    <p style="margin:0;">63 Ubi Ave 1 #04-08</p>
-                    <p style="margin:0;">Singapore 408937</p>
-                    <p style="margin:0;">GST Registration No: 202013305N</p>
-                </div>
-
-            </td>
-
-        </tr>
-    </table>
-    <h6 style="text-align:center; font-size:15px; font-weight:bold; margin:12px 0;">
-        TAX INVOICE
-    </h6>
-
-    <table width="100%" style="border: none;">
-    <tr>
-        <!-- LEFT: Customer -->
-        <td width="50%" style="border: none; vertical-align: top;">
-            <p>
-                <strong>Customer:</strong><br />
-                ${invoiceData.customerName}<br />
-                ${invoiceData.customerAddress}
-            </p>
-        </td>
-
-        <!-- RIGHT: Invoice Info (aligned right, text left) -->
-        <td width="50%" style="border: none; vertical-align: top; text-align: right;">
-            <div style="display:inline-block; text-align:left; font-size:13px;">
-                <p style="margin:0;">
-                    Invoice No: ${invoiceData.invoiceNo}<br />
-                    Invoice Date: ${invoiceData.invoiceDate}<br />
-                    Page: ${invoiceData.page}
-                </p>
-            </div>
-        </td>
-    </tr>
-</table>
-<table width="100%" style="border: none;">
-    <tr>
-        <!-- LEFT: Customer -->
-        <td width="50%" style="border: none; vertical-align: top;">
-            <p>
-                <p>Attn: Sylvia Tan/ Sae Hong </p><br />
-                <strong>Delivery:</strong>
-                <p>
-                Banyan Tree Hotels & Resorts Pte Ltd<br/>
-211 Upper Bukit Timah Road
-</p>
-            </p>
-        </td>
-
-        <!-- RIGHT: Invoice Info (aligned right, text left) -->
-        <td width="50%" style="border: none; vertical-align: top; text-align: right;">
-            <div style="display:inline-block; text-align:left; font-size:13px;">
-                <p style="margin:0;">
-                   PO No:202508148081227<br />
-                    Sales:LSD<br />
-                   Payment Terms: 30 Days
-                </p>
-            </div>
-        </td>
-    </tr>
+<!-- Logo -->
+<table width="100%" style="border:none; margin:0; padding:0;">
+<tr>
+<td style="border:none; text-align:center; padding:0;">
+<img src="http://localhost:3000/assets/logo/Insightzlogo.png" style="width:200px;" />
+</td>
+</tr>
 </table>
 
-    </div>
-    <table>
-        <thead>
-            <tr>
-                <th>L/N No</th>
-                <th>Part No</th>
-                <th>Description</th>
-                <th>Qty</th>
-                <th>Unit Price</th>
-                <th>Amount</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${invoiceData.items.map((item, idx) => `
-            <tr>
-                <td>${idx + 1}</td>
-                <td>${item.partNo}</td>
-                <td>${item.description}</td>
-                <td>${item.qty}</td>
-                <td>${item.unitPrice.toFixed(2)}</td>
-                <td>${item.amount.toFixed(2)}</td>
-            </tr>
-            `).join("")}
-        </tbody>
-    </table>
+<h2>Customer Security Report</h2>
+<div class="sub">${customer.acronisCustomerTenantName ?? ""}</div>
+<div class="period">Report Period: ${periodLabel}</div>
 
-    <div class="right">
-        <p>
-            Total: SGD ${invoiceData.total.toFixed(2)}<br />
-            GST 9%: ${invoiceData.gst.toFixed(2)}<br />
-            <strong>Grand Total: ${invoiceData.grandTotal.toFixed(2)}</strong>
-        </p>
-    </div>
-    <div >
-    <strong>Cheque Payable to Insightz Technology Pte Ltd</strong>
-    <p>Interest at 1.5% per month will be imposed on all overdue invoices<br/>
-    THIS IS A COMPUTER GENERATED INVOICE. NO SIGNATURE IS REQUIRED
+${chartImage ? `<img src="${chartImage}" />` : ""}
 
-    </p>
-    <strong>For electronic payment,</strong><br/>
-        <p>
-      
-Account Name: Insightz Technology Pte Ltd<br/>
-Bank Name: United Overseas Bank Limited<br/>
-           Bank Address: UOB Plaza, 80 Raffles Place, Singapore 048624<br/>
-Account No (SGD) : 357-314-302-5<br/>
-Bank Code: 7375<br/>
-Branch Code: 001<br/>
-Swift Code: UOVBSGSG<br/>
-        </p>
-    </div>
+
+<div class="page-break"></div>
+<h3>Device List</h3>
+<table>
+<thead>
+<tr><th>Hostname</th><th>OS</th><th>Status</th><th>Enabled</th><th>Registered</th></tr>
+</thead>
+<tbody>${deviceRows}</tbody>
+</table>
+
+
+<h3>Device Policies</h3>
+<table>
+<thead>
+<tr><th>Hostname</th><th>Policy Category</th><th>Policy Name</th></tr>
+</thead>
+<tbody>${policyRows}</tbody>
+</table>
+
+
+
+<h3>Alert Details</h3>
+<table>
+<thead>
+<tr><th>Received</th><th>Severity</th><th>Type</th><th>Category</th><th>Resource</th><th>Verdict</th></tr>
+</thead>
+<tbody>${alertRows}</tbody>
+</table>
+
 </body>
-
 </html>
-        `;
 
-        // PDF options
-        const options = {
-            format: "A4",
-            border: {
-                top: "10mm",
-                right: "10mm",
-                bottom: "10mm",
-                left: "10mm"
-            }
-        };
 
-        // Generate PDF buffer
-        pdf.create(html, options).toBuffer((err, buffer) => {
-            if (err) {
-                console.error(err);
-                return res.status(500).send("PDF generation failed");
-            }
+`;
+    const options = {
+      format: "A4",
+      border: {
+        top: "15mm",
+        right: "15mm",
+        bottom: "15mm",
+        left: "15mm",
+      },
+      type: "pdf",
+      orientation: "portrait",
+    };
+    // Generate PDF
+    pdf.create(html, options).toStream((err, stream) => {
+      if (err) return res.status(500).send("PDF generation failed");
+      res.setHeader("Content-Type", "application/pdf");
+      stream.pipe(res);
+    });
 
-            res.set({
-                "Content-Type": "application/pdf",
-                "Content-Disposition": `attachment; filename=invoice_${invoiceData.invoiceNo}.pdf`,
-                "Content-Length": buffer.length
-            });
-
-            res.send(buffer);
-        });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).send("Error generating PDF");
-    }
+  } catch (err) {
+    console.error("PDF generation error:", err);
+    res.status(500).send("Error generating PDF");
+  }
 };
 
-module.exports = { generateCustomerReport };
+
+
+
+const getAlertReport = async (req, res) => {
+  try {
+    const {
+      customerId,
+      month,
+      startMonth,
+      endMonth,
+      year,
+      page = 1,
+      limit = 100,
+    } = req.query;
+
+    if (!customerId) {
+      return res.status(400).json({ message: "customerId is required" });
+    }
+
+    const skip = (page - 1) * limit;
+
+    // ---------------------------------------
+    // 1️⃣ Fetch customer → get acronisCustomerTenantId
+    // ---------------------------------------
+    const customer = await prisma.customer.findUnique({
+      where: { id: Number(customerId) },
+      select: { acronisCustomerTenantId: true },
+    });
+
+    if (!customer || !customer.acronisCustomerTenantId) {
+      return res.status(404).json({
+        message: "Customer or Acronis Tenant ID not found",
+      });
+    }
+
+    const acronisTenantId = customer.acronisCustomerTenantId;
+
+    // ---------------------------------------
+    // 2️⃣ Date range calculation (rawJson.receivedAt)
+    // ---------------------------------------
+    let startDate, endDate;
+    const now = new Date();
+
+    if (month) {
+      const y = year || now.getFullYear();
+      startDate = new Date(y, month - 1, 1);
+      endDate = new Date(y, month, 0, 23, 59, 59);
+    }
+
+    if (startMonth && endMonth) {
+      const y = year || now.getFullYear();
+      startDate = new Date(y, startMonth - 1, 1);
+      endDate = new Date(y, endMonth, 0, 23, 59, 59);
+    }
+
+    if (year && !month && !startMonth) {
+      startDate = new Date(year, 0, 1);
+      endDate = new Date(year, 11, 31, 23, 59, 59);
+    }
+
+    // ---------------------------------------
+    // 3️⃣ Prisma where condition
+    // ---------------------------------------
+    const whereCondition = {
+      customerTenantId: acronisTenantId, // ✅ MATCH HERE
+      ...(startDate &&
+        endDate && {
+        receivedAt: {
+          gte: startDate.toISOString(),
+          lte: endDate.toISOString(),
+        },
+      }),
+    };
+
+    // ---------------------------------------
+    // 4️⃣ Fetch alert logs
+    // ---------------------------------------
+    const alerts = await prisma.alertLog.findMany({
+      where: whereCondition,
+      select: {
+        id: true,
+        alertId: true,
+        partnerTenantId: true,
+        customerName: true,
+        customerTenantId: true,
+        loggedAt: true,
+        rawJson: true,
+      },
+      skip: Number(skip),
+      take: Number(limit),
+      orderBy: { id: "desc" },
+    });
+
+    // ---------------------------------------
+    // 5️⃣ Normalize response
+    // ---------------------------------------
+    const formatted = alerts.map((item) => ({
+      id: item.id,
+
+      receivedAt:
+        item.loggedAt ??
+        item.rawJson?.receivedAt ??
+        null,
+
+      severity:
+        item.severity ??
+        item.rawJson?.severity ??
+        null,
+
+      type:
+        item.type ??
+        item.rawJson?.type ??
+        null,
+
+      category:
+        item.category ??
+        item.rawJson?.category ??
+        null,
+
+      // extracted ONLY from rawJson
+      resourceName:
+        item.rawJson?.details?.resourceName ??
+        null,
+
+      verdict:
+        item.rawJson?.details?.verdict ??
+        null,
+    }));
+
+    res.json({
+      success: true,
+      count: formatted.length,
+      data: formatted,
+    });
+  } catch (error) {
+    console.error("Alert report error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch alert report",
+    });
+  }
+};
+
+const getDeviceReport = async (req, res) => {
+  try {
+    const {
+      customerId,
+      month,
+      startMonth,
+      endMonth,
+      year,
+    } = req.query;
+
+    if (!customerId) {
+      return res.status(400).json({ message: "customerId is required" });
+    }
+
+    // ---------------------------------------
+    // 1️⃣ Fetch customer → acronisCustomerTenantId
+    // ---------------------------------------
+    const customer = await prisma.customer.findUnique({
+      where: { id: Number(customerId) },
+      select: { acronisCustomerTenantId: true },
+    });
+
+    if (!customer?.acronisCustomerTenantId) {
+      return res.status(404).json({
+        message: "Customer or Acronis Tenant ID not found",
+      });
+    }
+
+    const acronisTenantId = customer.acronisCustomerTenantId;
+
+    // ---------------------------------------
+    // 2️⃣ Date range calculation
+    // Using registrationDate if exists, else createdAt
+    // ---------------------------------------
+    let startDate, endDate;
+    const now = new Date();
+
+    if (month) {
+      const y = year || now.getFullYear();
+      startDate = new Date(y, month - 1, 1);
+      endDate = new Date(y, month, 0, 23, 59, 59);
+    }
+
+    if (startMonth && endMonth) {
+      const y = year || now.getFullYear();
+      startDate = new Date(y, startMonth - 1, 1);
+      endDate = new Date(y, endMonth, 0, 23, 59, 59);
+    }
+
+    if (year && !month && !startMonth) {
+      startDate = new Date(year, 0, 1);
+      endDate = new Date(year, 11, 31, 23, 59, 59);
+    }
+
+    // ---------------------------------------
+    // 3️⃣ Base where condition
+    // ---------------------------------------
+    const baseWhere = {
+      customerTenantId: acronisTenantId,
+      ...(startDate &&
+        endDate && {
+        createdAt: {
+          gte: startDate,
+          lte: endDate,
+        },
+      }),
+    };
+
+    // ---------------------------------------
+    // 4️⃣ Aggregations (fast + clean)
+    // ---------------------------------------
+    const [
+      total,
+      online,
+      offline,
+      disabled,
+    ] = await Promise.all([
+      prisma.device.count({
+        where: baseWhere,
+      }),
+      prisma.device.count({
+        where: { ...baseWhere, online: true },
+      }),
+      prisma.device.count({
+        where: { ...baseWhere, online: false },
+      }),
+      prisma.device.count({
+        where: { ...baseWhere, enabled: false },
+      }),
+    ]);
+
+    // ---------------------------------------
+    // 5️⃣ Response
+    // ---------------------------------------
+    res.json({
+      success: true,
+      total,
+      online,
+      offline,
+      disabled,
+    });
+  } catch (error) {
+    console.error("Device report error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch device report",
+    });
+  }
+};
+
+module.exports = { generateCustomerReport, getAlertReport, getDeviceReport };

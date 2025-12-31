@@ -310,7 +310,35 @@ const deviceController = {
             return res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
         }
     },
+    parentcount: async (req, res) => {
+        try {
+         
 
+            // 2️⃣ Count enabled = true
+            const enabledCount = await prisma.device.count({
+                where: {
+                    enabled: true
+                }
+            });
+
+            // 3️⃣ Count enabled = false
+            const disabledCount = await prisma.device.count({
+                where: {
+                    enabled: false
+                }
+            });
+
+            // 4️⃣ Return counts
+            return res.status(STATUS_CODES.OK).json({
+                enabled: enabledCount,
+                disabled: disabledCount
+            });
+
+        } catch (error) {
+            console.error(error);
+            return res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+        }
+    },
     policy: async (req, res) => {
         try {
             const { id } = req.params;

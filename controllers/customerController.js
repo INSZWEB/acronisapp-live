@@ -411,6 +411,44 @@ const customerController = {
             res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
         }
     },
+     contractView: async (req, res) => {
+        try {
+            const { id } = req.query;
+
+            if (isNaN(parseInt(id))) {
+                return res.status(STATUS_CODES.BAD_REQUEST).json({ error: ERROR_MESSAGES.BAD_REQUEST });
+            }
+
+            const result = await prisma.customer.findUnique({
+                where: {
+                    id: parseInt(id),
+                },
+                select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    mobile: true,
+                    roles: {
+                        select: {
+                            id: true,
+                            roleName: true
+                        }
+                    },
+
+                }
+            });
+
+            if (!result) {
+                return res.status(STATUS_CODES.NOT_FOUND).json({ error: ERROR_MESSAGES.USER_NOT_FOUND });
+            }
+
+            return res.status(STATUS_CODES.OK).json(result);
+        } catch (error) {
+            console.error(error);
+            return res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+        }
+    },
 
 };
 

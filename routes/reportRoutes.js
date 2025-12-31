@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { generateCustomerReport } = require('../controllers/reportController');
+const { generateCustomerReport,getAlertReport,getDeviceReport } = require('../controllers/reportController');
 
-router.get('/customer', generateCustomerReport);
+router.post('/customer', generateCustomerReport);
+router.get("/alert", getAlertReport);
+router.get("/devices", getDeviceReport);
 
 module.exports = router;
