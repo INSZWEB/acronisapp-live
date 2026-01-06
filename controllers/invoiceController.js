@@ -489,22 +489,121 @@ Swift Code: UOVBSGSG<br/>
 
 
     /* ---------------- PDF ---------------- */
+    // pdf.create(html, { format: "A4" }).toBuffer(async (err, buffer) => {
+    //   if (err) return res.status(500).send("PDF generation failed");
+
+    //   /* ---------------- FILE SYSTEM SAVE ---------------- */
+    //   const customerFolder = path.join(UPLOAD_BASE, String(customerId));
+
+    //   if (!fs.existsSync(customerFolder)) {
+    //     fs.mkdirSync(customerFolder, { recursive: true });
+    //   }
+
+    //   const fileName = `${invoiceNo}.pdf`;
+    //   const filePath = path.join(customerFolder, fileName);
+
+    //   fs.writeFileSync(filePath, buffer);
+
+    //   /* ---------------- SAVE INVOICE TO DB ---------------- */
+    //   const invoiceRecord = await prisma.invoice.create({
+    //     data: {
+    //       customerId: Number(customerId),
+    //       startDate: start,
+    //       endDate: end,
+    //       generated: true,
+    //       category: "mdr",
+    //       type: "invoice",
+    //       mailto: contact?.email ?? null,
+    //       mailcc: cc.length ? cc : null,
+    //       terms: 30,
+    //       paymentStatus: "pending",
+    //       invoicePath: {
+    //         fileName,
+    //         path: `uploads/invoices/${customerId}/${fileName}`,
+    //       },
+    //     },
+    //   });
+
+    //   /* ---------------- RESPONSE HANDLING ---------------- */
+    //   if (downloadMode === "manual") {
+    //     res.set({
+    //       "Content-Type": "application/pdf",
+    //       "Content-Disposition": `attachment; filename=${fileName}`,
+    //       "Content-Length": buffer.length,
+    //     });
+    //     return res.send(buffer);
+    //   }
+
+    //   if (downloadMode === "auto") {
+    //     await sendMail({
+    //       to: contact?.email,
+    //       cc,
+    //       attachment: buffer,
+    //     });
+
+    //     return res.json({
+    //       success: true,
+    //       invoiceId: invoiceRecord.id,
+    //       message: "Invoice generated & emailed successfully",
+    //     });
+    //   }
+
+    //   if (downloadMode === "forward") {
+    //     if (!to) {
+    //       return res.status(400).json({ error: "`to` email required" });
+    //     }
+
+    //     await sendMail({
+    //       to,
+    //       cc,
+    //       attachment: buffer,
+    //     });
+
+    //     return res.json({
+    //       success: true,
+    //       invoiceId: invoiceRecord.id,
+    //       message: "Invoice forwarded successfully",
+    //     });
+    //   }
+
+    //   return res.status(400).json({ error: "Invalid downloadMode" });
+    // });
+
+    console.log("🧾 [1] Starting PDF generation");
+
     pdf.create(html, { format: "A4" }).toBuffer(async (err, buffer) => {
-      if (err) return res.status(500).send("PDF generation failed");
+      if (err) {
+        console.error("❌ [2] PDF generation failed:", err);
+        return res.status(500).send("PDF generation failed");
+      }
+
+      console.log("✅ [2] PDF generated successfully");
+      console.log("📦 PDF size:", buffer.length, "bytes");
 
       /* ---------------- FILE SYSTEM SAVE ---------------- */
+      console.log("📁 [3] Preparing file system save");
+
       const customerFolder = path.join(UPLOAD_BASE, String(customerId));
+      console.log("📂 Target folder:", customerFolder);
 
       if (!fs.existsSync(customerFolder)) {
+        console.log("📁 Folder does not exist, creating...");
         fs.mkdirSync(customerFolder, { recursive: true });
+        console.log("✅ Folder created");
+      } else {
+        console.log("ℹ️ Folder already exists");
       }
 
       const fileName = `${invoiceNo}.pdf`;
       const filePath = path.join(customerFolder, fileName);
 
+      console.log("💾 [4] Writing PDF file:", filePath);
       fs.writeFileSync(filePath, buffer);
+      console.log("✅ PDF saved to filesystem");
 
       /* ---------------- SAVE INVOICE TO DB ---------------- */
+      console.log("🗄️ [5] Saving invoice record to database");
+
       const invoiceRecord = await prisma.invoice.create({
         data: {
           customerId: Number(customerId),
@@ -524,22 +623,37 @@ Swift Code: UOVBSGSG<br/>
         },
       });
 
+      console.log("✅ [5] Invoice saved in DB");
+      console.log("🆔 Invoice ID:", invoiceRecord.id);
+
       /* ---------------- RESPONSE HANDLING ---------------- */
+      console.log("🚦 [6] Handling downloadMode:", downloadMode);
+
       if (downloadMode === "manual") {
+        console.log("⬇️ [7] Manual download selected");
+
         res.set({
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename=${fileName}`,
           "Content-Length": buffer.length,
         });
+
+        console.log("✅ PDF sent to browser");
         return res.send(buffer);
       }
 
       if (downloadMode === "auto") {
+        console.log("📧 [7] Auto email mode");
+        console.log("📤 Sending email to:", contact?.email);
+        console.log("📄 CC:", cc);
+
         await sendMail({
           to: contact?.email,
           cc,
           attachment: buffer,
         });
+
+        console.log("✅ Email sent successfully");
 
         return res.json({
           success: true,
@@ -549,15 +663,23 @@ Swift Code: UOVBSGSG<br/>
       }
 
       if (downloadMode === "forward") {
+        console.log("📨 [7] Forward mode");
+
         if (!to) {
+          console.warn("⚠️ Missing `to` email");
           return res.status(400).json({ error: "`to` email required" });
         }
+
+        console.log("📤 Forwarding email to:", to);
+        console.log("📄 CC:", cc);
 
         await sendMail({
           to,
           cc,
           attachment: buffer,
         });
+
+        console.log("✅ Invoice forwarded successfully");
 
         return res.json({
           success: true,
@@ -566,9 +688,9 @@ Swift Code: UOVBSGSG<br/>
         });
       }
 
+      console.warn("❌ [7] Invalid downloadMode:", downloadMode);
       return res.status(400).json({ error: "Invalid downloadMode" });
     });
-
 
   } catch (err) {
     console.error(err);
