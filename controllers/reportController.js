@@ -44,10 +44,10 @@ const loadBase64 = (p) =>
 /* ===============================
    LOAD IMAGES
 ================================ */
-const firstPageImg = loadBase64("uploads/logo/firstPage.png");
+const firstPageImg = loadBase64("uploads/logo/firstpage.png");
 const headerImg = loadBase64("uploads/logo/header.jpg");
 const footerImg = loadBase64("uploads/logo/footer.jpg");
-const endPageImg = loadBase64("uploads/logo/endPage.png");
+const endPageImg = loadBase64("uploads/logo/endpage.png");
 
 const generateCustomerReport = async (req, res) => {
   try {

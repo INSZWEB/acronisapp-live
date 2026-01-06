@@ -357,7 +357,7 @@ tbody tr:not(:last-child) td { border-bottom:1px solid #eee; }
         <tr>
             <!-- LEFT: LOGO + COMPANY -->
             <td width="75%" style="border: none; vertical-align: top;">
-                <img src="http://localhost:3000/assets/logo/Insightzlogo.png"
+                <img src=${BASE_URL_FRONTEND}assets/logo/Insightzlogo.png
                     style="width:200px; margin-bottom:10px;" />
 
             </td>

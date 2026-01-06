@@ -93,7 +93,7 @@ const EMAIL_AUTH = {
 };
 
 
-const BASE_URL_FRONTEND='https://support.insightzmss.com:1443/';
+const BASE_URL_FRONTEND='https://acronismdr.insightzmss.com/';
 
 module.exports = {
     ERROR_MESSAGES,
