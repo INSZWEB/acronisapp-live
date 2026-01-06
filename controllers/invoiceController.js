@@ -1,4 +1,5 @@
-const pdf = require("html-pdf");
+const pdf = require("html-pdf-node"); // ✅ NEW
+
 const { PrismaClient } = require("@prisma/client");
 const fs = require("fs");
 const path = require("path");
@@ -571,39 +572,32 @@ Swift Code: UOVBSGSG<br/>
 
     console.log("🧾 [1] Starting PDF generation");
 
-    pdf.create(html, { format: "A4" }).toBuffer(async (err, buffer) => {
-      if (err) {
-        console.error("❌ [2] PDF generation failed:", err);
+   
+      console.log("🧾 [1] Starting PDF generation");
+
+      const file = { content: html };
+      const options = { format: "A4", printBackground: true };
+
+
+      try {
+        buffer = await pdf.generatePdf(file, options);
+        console.log("✅ [2] PDF generated successfully");
+      } catch (err) {
+        console.error("❌ PDF generation failed:", err);
         return res.status(500).send("PDF generation failed");
       }
 
-      console.log("✅ [2] PDF generated successfully");
-      console.log("📦 PDF size:", buffer.length, "bytes");
-
-      /* ---------------- FILE SYSTEM SAVE ---------------- */
-      console.log("📁 [3] Preparing file system save");
-
+      /* FILE SAVE */
       const customerFolder = path.join(UPLOAD_BASE, String(customerId));
-      console.log("📂 Target folder:", customerFolder);
-
       if (!fs.existsSync(customerFolder)) {
-        console.log("📁 Folder does not exist, creating...");
         fs.mkdirSync(customerFolder, { recursive: true });
-        console.log("✅ Folder created");
-      } else {
-        console.log("ℹ️ Folder already exists");
       }
 
       const fileName = `${invoiceNo}.pdf`;
       const filePath = path.join(customerFolder, fileName);
-
-      console.log("💾 [4] Writing PDF file:", filePath);
       fs.writeFileSync(filePath, buffer);
-      console.log("✅ PDF saved to filesystem");
 
-      /* ---------------- SAVE INVOICE TO DB ---------------- */
-      console.log("🗄️ [5] Saving invoice record to database");
-
+      /* DB SAVE */
       const invoiceRecord = await prisma.invoice.create({
         data: {
           customerId: Number(customerId),
@@ -622,6 +616,7 @@ Swift Code: UOVBSGSG<br/>
           },
         },
       });
+
 
       console.log("✅ [5] Invoice saved in DB");
       console.log("🆔 Invoice ID:", invoiceRecord.id);
@@ -690,8 +685,7 @@ Swift Code: UOVBSGSG<br/>
 
       console.warn("❌ [7] Invalid downloadMode:", downloadMode);
       return res.status(400).json({ error: "Invalid downloadMode" });
-    });
-
+    
   } catch (err) {
     console.error(err);
     res.status(500).send("Error generating invoice");
