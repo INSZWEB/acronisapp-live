@@ -30,39 +30,6 @@ async function apiGet(url, token, params = {}) {
     return res.data;
 }
 
-
-function mapContactToDb(contact) {
-    return {
-        apiId: contact.id,
-        apiCreatedAt: contact.created_at ? new Date(contact.created_at) : null,
-        apiUpdatedAt: contact.updated_at ? new Date(contact.updated_at) : null,
-        email: contact.email || null,
-        address1: contact.address1 || null,
-        address2: contact.address2 || null,
-        country: contact.country || null,
-        state: contact.state || null,
-        city: contact.city || null,
-        zipcode: contact.zipcode || null,
-        phone: contact.phone || null,
-        firstname: contact.firstname || null,
-        lastname: contact.lastname || null,
-        title: contact.title || null,
-        website: contact.website || null,
-        industry: contact.industry || null,
-        organizationSize: contact.organization_size || null,
-        emailConfirmed: contact.email_confirmed ?? null,
-        aan: contact.aan || null,
-        fax: contact.fax || null,
-        language: contact.language || null,
-        types: Array.isArray(contact.types)
-            ? contact.types.join(",")
-            : null,
-        deletedAt: contact.deleted_at ? new Date(contact.deleted_at) : null,
-        tenantId: contact.tenant_id || null,
-        userId: contact.user_id || null,
-    };
-}
-
 // -------------------------------------------
 // API Integration Handler
 // -------------------------------------------
@@ -110,23 +77,9 @@ const getParnterApiIntegration = async (req, res) => {
             console.log("No contacts found for tenant:", partnerTenantId);
         } else {
             for (const contactId of contactsResponse.items) {
-                const contactDetails = await apiGet(
-                    `${datacenterUrl}/api/2/contacts/${contactId}`,
-                    token
-                );
-
+                const contactDetails = await apiGet(`${datacenterUrl}/api/2/contacts/${contactId}`, token);
                 console.log("Contact Details:", contactDetails);
-
-                const data = mapContactToDb(contactDetails);
-
-                await prisma.partnerContact.upsert({
-                    where: { apiId: data.apiId },
-                    update: data,
-                    create: data,
-                });
             }
-
-            console.log("✅ Contacts synced successfully");
         }
 
         // Respond success
@@ -144,7 +97,7 @@ const getParnterApiIntegration = async (req, res) => {
         });
 
     } catch (err) {
-        console.log("error", err.message)
+        console.log("error",err.message)
         // return res.status(500).json({
         //     type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.partner_api_integration_partner_api_success.v1.88",
         //     request_id,
