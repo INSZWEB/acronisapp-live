@@ -173,10 +173,6 @@ const generateCustomerReport = async (req, res) => {
         customerTenantId: tenantId,
         enabled: true,
         agentId: { not: null },
-        createdAt: {
-          gte: start.toISOString(),
-          lte: end.toISOString(),
-        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -188,10 +184,6 @@ const generateCustomerReport = async (req, res) => {
         customerTenantId: tenantId,
         enabled: true,
         agentId: { not: null },
-        createdAt: {
-          gte: start.toISOString(),
-          lte: end.toISOString(),
-        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -335,22 +327,76 @@ ${planPolicyHTML}<br/><br/>
 <head>
 <meta charset="utf-8"/>
 <style>
-body { font-family: Arial, Helvetica, sans-serif; font-size:12px; color:#222;margin:20px;padding:20px; }
-table { width:100%; border-collapse:collapse; margin-top:20px; }
-thead th { border-bottom:1px solid #eee; padding:8px 6px; }
-tbody td { padding:10px 6px; vertical-align:top; }
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  color: #222;
+  margin: 0;
+  padding: 12px 16px;
+}
 
-tbody tr:not(:last-child) td { border-bottom:1px solid #eee; }
-.right { text-align:right; }
-.header td { vertical-align:top; }
-.desc-title { font-weight:bold; margin-bottom:4px; }
-.desc-body { font-size:11.5px; line-height:1.5; }
-.muted { color:#666; font-size:11px; }
-.totals { float:right; width:260px; margin-top:20px; }
-.totals .grand { font-weight:bold; border-top:1px solid #eee; padding-top:6px; }
-.footer { margin-top:40px; font-size:11px; color:#666; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+}
 
+p {
+  margin: 2px 0;
+}
+
+h6 {
+  margin: 6px 0;
+}
+
+thead th {
+  border-bottom: 1px solid #eee;
+  padding: 6px 5px;
+}
+
+tbody td {
+  padding: 6px 5px;
+  vertical-align: top;
+}
+
+tbody tr:not(:last-child) td {
+  border-bottom: 1px solid #eee;
+}
+
+.desc-title {
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.desc-body {
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.muted {
+  color: #666;
+  font-size: 11px;
+}
+
+.totals {
+  width: 260px;
+  margin-top: 10px;
+  margin-left: auto;
+}
+
+.totals .grand {
+  font-weight: bold;
+  border-top: 1px solid #eee;
+  padding-top: 4px;
+}
+
+.footer {
+  margin-top: 20px;
+  font-size: 11px;
+  color: #666;
+}
 </style>
+
 </head>
 
 <body>
@@ -359,7 +405,7 @@ tbody tr:not(:last-child) td { border-bottom:1px solid #eee; }
             <!-- LEFT: LOGO + COMPANY -->
             <td width="75%" style="border: none; vertical-align: top;">
                 <img src=${BASE_URL_FRONTEND}assets/logo/Insightzlogo.png
-                    style="width:200px; margin-bottom:10px;" />
+                    style="width:150px; margin-bottom:10px;" />
 
             </td>
 
