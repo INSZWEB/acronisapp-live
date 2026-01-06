@@ -40,7 +40,7 @@ const enable = async (req, res) => {
     // ✅ Extract fields from X-CyberApp-Extra
     const contactName = extra["Enter the name"] || null;
     const contactEmail = extra["Enter the email"] || null;
-    const preferredSlot = extra["Timeslot"] || null;
+    const preferredSlot = extra["Time slot"] || null;
     const timeZone = extra["Time Zone"] || null;
     const preferredDateRaw = extra["enter the date"] || null;
     const preferredDate = parseDDMMYYYY(preferredDateRaw);
