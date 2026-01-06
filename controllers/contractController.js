@@ -55,7 +55,8 @@ const contractController = {
                     name: true,
                     installationId: true,
                     endDate: true,
-                    serialNumber: true
+                    serialNumber: true,
+                    seats: true
 
                 }
             });
@@ -107,6 +108,52 @@ const contractController = {
                 .json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
         }
     },
+    seats: async (req, res) => {
+        try {
+            const { seats, id } = req.body;
+
+            const customerId = parseInt(id);
+            const seatCount = parseInt(seats);
+
+            // ---------------- VALIDATION ----------------
+            if (isNaN(customerId) || isNaN(seatCount) || seatCount < 1) {
+                return res
+                    .status(STATUS_CODES.BAD_REQUEST)
+                    .json({ error: ERROR_MESSAGES.BAD_REQUEST });
+            }
+
+            // ---------------- UPDATE ONLY ----------------
+            const result = await prisma.customerContract.update({
+                where: {
+                    customerId,
+                },
+                data: {
+                    seats: seatCount,
+                },
+            });
+
+            return res.status(STATUS_CODES.OK).json({
+                success: true,
+                message: "Seats updated successfully",
+                data: result,
+            });
+
+        } catch (error) {
+            console.error("Seat update error:", error);
+
+            // Record not found
+            if (error.code === "P2025") {
+                return res.status(STATUS_CODES.NOT_FOUND).json({
+                    error: "Customer contract not found",
+                });
+            }
+
+            return res
+                .status(STATUS_CODES.INTERNAL_ERROR)
+                .json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+        }
+    },
+
 
 
 };

@@ -2,8 +2,6 @@ const pdf = require("html-pdf-node");
 const fs = require("fs");
 const path = require("path");
 const { Readable } = require("stream");
-const { PDFDocument, rgb } = require("pdf-lib");
-
 // Ensure the uploads folder exists
 const uploadDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadDir)) {
@@ -36,18 +34,6 @@ const sendMail = async ({ to, cc, attachment }) => {
 };
 
 const UPLOAD_BASE = path.join(process.cwd(), "uploads", "reports");
-
-
-const loadBase64 = (p) =>
-  `data:image/jpeg;base64,${fs.readFileSync(p).toString("base64")}`;
-
-/* ===============================
-   LOAD IMAGES
-================================ */
-const firstPageImg = loadBase64("uploads/logo/firstPage.png");
-const headerImg = loadBase64("uploads/logo/header.jpg");
-const footerImg = loadBase64("uploads/logo/footer.jpg");
-const endPageImg = loadBase64("uploads/logo/endPage.png");
 
 const generateCustomerReport = async (req, res) => {
   try {
@@ -109,7 +95,7 @@ const generateCustomerReport = async (req, res) => {
       select: {
         acronisCustomerTenantId: true,
         acronisCustomerTenantName: true,
-        partnerTenantId: true
+        partnerTenantId:true
       },
     });
 
@@ -146,7 +132,7 @@ const generateCustomerReport = async (req, res) => {
     console.log("plan", plan)
 
 
-    /* ---------------- CONTACT ---------------- */
+       /* ---------------- CONTACT ---------------- */
     const contact = await prisma.parnterContact.findFirst({
       where: {
         tenantId: customer.partnerTenantId,
@@ -259,94 +245,6 @@ const generateCustomerReport = async (req, res) => {
     // </table>
     // `;
 
-
-    const firstPageHTML = `
-<html>
-<head>
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, Helvetica, sans-serif;
-    }
-
-    .page {
-      position: relative;
-      width: 100%;
-      height: 100vh;
-    }
-
-    .bg {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      z-index: 1;
-    }
-
-    .title {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 2;
-      text-align: center;
-      color: #fff;
-    }
-
-    /* 3D TEXT EFFECT */
-    .title h2,
-    .title .sub,
-    .title .period {
-      color: #ffffff;
-      text-shadow:
-        1px 1px 0 rgba(0,0,0,0.3),
-        2px 2px 0 rgba(0,0,0,0.25),
-        3px 3px 6px rgba(0,0,0,0.6);
-    }
-
-    .title h2 {
-      font-size: 44px;
-      font-weight: 700;
-      margin-bottom: 12px;
-    }
-
-    .title .sub {
-      font-size: 26px;
-      font-weight: 600;
-      margin-bottom: 8px;
-    }
-
-    .title .period {
-      font-size: 18px;
-      font-weight: 500;
-      opacity: 0.95;
-    }
-  </style>
-</head>
-
-<body>
-  <div class="page">
-    <img src="${firstPageImg}" class="bg" />
-
-    <div class="title">
-      <h2>Customer Security Report</h2>
-      <div class="sub">${customer.acronisCustomerTenantName ?? ""}</div>
-      <div class="period">Report Period: ${periodLabel}</div>
-    </div>
-  </div>
-</body>
-</html>
-`;
-
-
-    const firstPagePDF = await pdf.generatePdf(
-      { content: firstPageHTML },
-      { format: "A4", printBackground: true }
-    );
-
     // Header & footer templates
     const headerTemplate = `
 <div style="width:100%; text-align:center;">
@@ -436,7 +334,22 @@ tr { page-break-inside: avoid; }
 
 <body>
 
+<!-- Logo -->
+<table width="100%" style="border:none; margin:0; padding:0;">
+<tr>
+<td style="border:none; text-align:center; padding:0;">
+<img src="http://localhost:3000/assets/logo/Insightzlogo.png" style="width:200px;" />
+</td>
+</tr>
+</table>
+
+<h2>Customer Security Report</h2>
+<div class="sub">${customer.acronisCustomerTenantName ?? ""}</div>
+<div class="period">Report Period: ${periodLabel}</div>
+
 ${chartImage ? `<img src="${chartImage}" />` : ""}
+
+
 <div class="page-break"></div>
 <h3>Device List</h3>
 <table>
@@ -478,25 +391,6 @@ ${chartImage ? `<img src="${chartImage}" />` : ""}
 
 
 `;
-
-
-    /* =====================================================
-             3️⃣ LAST PAGE (FULL IMAGE, NO HEADER / FOOTER)
-          ===================================================== */
-    const endPageHTML = `
-          <html>
-            <body style="margin:0">
-              <img src="${endPageImg}"
-                   style="width:100%;height:100vh;object-fit:cover" />
-            </body>
-          </html>
-        `;
-
-    const endPagePDF = await pdf.generatePdf(
-      { content: endPageHTML },
-      { format: "A4", printBackground: true }
-    );
-
     const options = {
       format: "A4",
       printBackground: true,
@@ -511,67 +405,24 @@ ${chartImage ? `<img src="${chartImage}" />` : ""}
       footerTemplate,
     };
     // Generate PDF
-
     (async () => {
       try {
-        /* ---------------- GENERATE CONTENT PDF ---------------- */
         const file = { content: contentHtml };
-        const contentPDF = await pdf.generatePdf(file, options);
 
-        /* ---------------- CREATE FINAL PDF ---------------- */
-        const finalPdf = await PDFDocument.create();
-        const mergedPages = [];
-
-        for (const buffer of [firstPagePDF, contentPDF, endPagePDF]) {
-          const pdfDoc = await PDFDocument.load(buffer);
-          const pages = await finalPdf.copyPages(
-            pdfDoc,
-            pdfDoc.getPageIndices()
-          );
-          pages.forEach((p) => {
-            finalPdf.addPage(p);
-            mergedPages.push(p);
-          });
-        }
-
-        /* ---------------- TOC LINKS ---------------- */
-        const TOC_PAGE_INDEX = 1;       // Page 2
-        const SECTION1_PAGE_INDEX = 2;  // Page 3
-        const SECTION2_PAGE_INDEX = 4;  // Page 5
-
-        const tocPage = mergedPages[TOC_PAGE_INDEX];
-
-        const tocLinks = [
-          { y: 650, target: SECTION1_PAGE_INDEX },
-          { y: 620, target: SECTION2_PAGE_INDEX },
-        ];
-
-        tocLinks.forEach((item) => {
-          tocPage.drawRectangle({
-            x: 50,
-            y: item.y,
-            width: 400,
-            height: 18,
-            opacity: 0,
-            link: mergedPages[item.target],
-          });
-        });
-
-        /* ---------------- FINAL PDF BUFFER ---------------- */
-        const finalPdfBytes = await finalPdf.save();
-        const finalPdfBuffer = Buffer.from(finalPdfBytes);
+        /* ---------------- GENERATE PDF ---------------- */
+        const pdfBuffer = await pdf.generatePdf(file, options);
 
         /* ---------------- FILE SYSTEM SAVE ---------------- */
         const customerFolder = path.join(UPLOAD_BASE, String(customerId));
+
         if (!fs.existsSync(customerFolder)) {
           fs.mkdirSync(customerFolder, { recursive: true });
         }
-
         const invoiceNo = `INV-${Date.now()}`;
         const fileName = `${invoiceNo}.pdf`;
         const filePath = path.join(customerFolder, fileName);
 
-        fs.writeFileSync(filePath, finalPdfBuffer);
+        fs.writeFileSync(filePath, pdfBuffer);
 
         /* ---------------- SAVE REPORT TO DB ---------------- */
         const reportRecord = await prisma.report.create({
@@ -581,7 +432,7 @@ ${chartImage ? `<img src="${chartImage}" />` : ""}
             endDate: end,
             generated: true,
             category: "mdr",
-            type: downloadMode,
+            type: downloadMode, // manual | auto | forward
             mailto: contact?.email ?? null,
             mailcc: cc?.length ? cc : null,
             terms: 30,
@@ -602,8 +453,9 @@ ${chartImage ? `<img src="${chartImage}" />` : ""}
             "Content-Disposition",
             `attachment; filename="${fileName}"`
           );
-          res.setHeader("Content-Length", finalPdfBuffer.length);
-          return res.send(finalPdfBuffer);
+          res.setHeader("Content-Length", pdfBuffer.length);
+
+          return res.send(pdfBuffer);
         }
 
         // 🔹 Auto email
@@ -611,7 +463,7 @@ ${chartImage ? `<img src="${chartImage}" />` : ""}
           await sendMail({
             to: contact?.email,
             cc,
-            attachment: finalPdfBuffer,
+            attachment: pdfBuffer,
           });
 
           return res.json({
@@ -630,7 +482,7 @@ ${chartImage ? `<img src="${chartImage}" />` : ""}
           await sendMail({
             to,
             cc,
-            attachment: finalPdfBuffer,
+            attachment: pdfBuffer,
           });
 
           return res.json({
@@ -640,9 +492,9 @@ ${chartImage ? `<img src="${chartImage}" />` : ""}
           });
         }
 
-        // 🔹 Inline preview
+        // 🔹 Default inline preview
         const stream = new Readable();
-        stream.push(finalPdfBuffer);
+        stream.push(pdfBuffer);
         stream.push(null);
 
         res.setHeader("Content-Type", "application/pdf");
@@ -966,7 +818,7 @@ const list = async (req, res) => {
           terms: true,
           paymentStatus: true,
           invoicePath: true,
-          type: true
+          type:true
         },
       }),
     ]);
@@ -996,7 +848,7 @@ const deletes = async (req, res) => {
       return res.status(STATUS_CODES.BAD_REQUEST).json({ error: ERROR_MESSAGES.BAD_REQUEST });
     }
 
-    await prisma.report.delete({
+    await prisma.invoice.delete({
       where: {
         id: parseInt(id),
       },
@@ -1009,4 +861,4 @@ const deletes = async (req, res) => {
   }
 };
 
-module.exports = { deletes, generateCustomerReport, getAlertReport, getDeviceReport, list };
+module.exports = { deletes,generateCustomerReport, getAlertReport, getDeviceReport,list };

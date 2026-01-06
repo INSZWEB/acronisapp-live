@@ -76,3 +76,50 @@ exports.updateDeviceInterval = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+exports.getMailCC = async (req, res) => {
+  try {
+    const settings = await prisma.settings.findFirst({
+      select: { mailcc: true },
+    });
+
+    return res.json({
+      success: true,
+      mailcc: settings?.mailcc ?? null,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+exports.upsertMailCC = async (req, res) => {
+  try {
+    const { mailcc } = req.body;
+    // example mailcc: ["a@test.com", "b@test.com"]
+
+    const settings = await prisma.settings.findFirst();
+
+    let result;
+
+    if (settings) {
+      result = await prisma.settings.update({
+        where: { id: settings.id },
+        data: { mailcc },
+      });
+    } else {
+      result = await prisma.settings.create({
+        data: { mailcc },
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Mail CC saved successfully",
+      data: result.mailcc,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};

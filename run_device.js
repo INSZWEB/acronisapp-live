@@ -8,7 +8,6 @@ const prisma = new PrismaClient();
 // -----------------------------
 async function getIntervalHours() {
   const settings = await prisma.settings.findUnique({ where: { id: 1 } });
-  // Default to 12 hours if null
   return settings?.customerDeviceInterval ?? 12;
 }
 
@@ -38,7 +37,6 @@ async function fetchAgents(token, dcUrl) {
   const resp = await axios.get(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  // console.log("resp.data.items", resp.data.items)
   return resp.data.items || [];
 }
 
@@ -68,7 +66,7 @@ function normalizeAgent(agent) {
 }
 
 // -----------------------------
-// Process Credentials and Store Devices
+// Process Credentials & Sync Devices
 // -----------------------------
 async function processAllCredentials() {
   const credentials = await prisma.credential.findMany({
@@ -81,7 +79,6 @@ async function processAllCredentials() {
     },
   });
 
-
   for (const cred of credentials) {
     try {
       const token = await getAccessToken(
@@ -92,6 +89,12 @@ async function processAllCredentials() {
 
       const agents = await fetchAgents(token, cred.datacenterUrl);
 
+      // 👉 collect all agent IDs from Acronis
+      const fetchedAgentIds = agents.map((a) => a.id);
+
+      // -----------------------------
+      // UPSERT DEVICES
+      // -----------------------------
       for (const agent of agents) {
         const normalized = normalizeAgent(agent);
 
@@ -129,12 +132,31 @@ async function processAllCredentials() {
             units: normalized.units,
           },
         });
-
       }
 
-      console.log(`Stored ${agents.length} agents for ${cred.partnerTenantId}`);
+      // -----------------------------
+      // DELETE STALE DEVICES
+      // -----------------------------
+      // Only delete if Acronis returned something (safety)
+      if (fetchedAgentIds.length > 0) {
+        await prisma.device.deleteMany({
+          where: {
+            customerTenantId: cred.customerTenantId,
+            agentId: {
+              notIn: fetchedAgentIds,
+            },
+          },
+        });
+      }
+
+      console.log(
+        `Synced ${agents.length} devices for customer ${cred.customerTenantId}`
+      );
     } catch (error) {
-      console.error(`Error processing ${cred.partnerTenantId}:`, error.message);
+      console.error(
+        `Error processing customer ${cred.customerTenantId}:`,
+        error.message
+      );
     }
   }
 }
@@ -144,7 +166,7 @@ async function processAllCredentials() {
 // -----------------------------
 (async function scheduleJob() {
   const intervalHours = await getIntervalHours();
-  const intervalMs = intervalHours * 60 * 60 * 1000; // convert hours → ms
+  const intervalMs = intervalHours * 60 * 60 * 1000;
 
   console.log(`Device sync will run every ${intervalHours} hour(s).`);
 

@@ -10,6 +10,8 @@ router.post('/add',apiMiddleware, commonMiddleware, deviceController.add);
 router.get('/list',apiMiddleware, deviceController.listall);
 router.get('/select', deviceController.select);
 router.get('/count', deviceController.count);
+
+router.get('/customer/count', deviceController.customerCount);
 router.get('/parentcount', deviceController.parentcount);
 router.put('/update/:id',apiMiddleware, commonMiddleware, deviceController.update);
 router.get('/view/:id',apiMiddleware, deviceController.view);

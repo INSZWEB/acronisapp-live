@@ -1,5 +1,8 @@
 const pdf = require("html-pdf");
 const { PrismaClient } = require("@prisma/client");
+const fs = require("fs");
+const path = require("path");
+const { ERROR_MESSAGES, STATUS_CODES, EMAIL_AUTH, BASE_URL_FRONTEND } = require('../constants/constants');
 
 const prisma = new PrismaClient();
 const { createTransporter } = require('../config/mailConfig')
@@ -24,38 +27,79 @@ const sendMail = async ({ to, cc, attachment }) => {
   await transporter.sendMail(mailOptions);
 };
 
+const UPLOAD_BASE = path.join(process.cwd(), "uploads", "invoices");
+
 const generateCustomerReport = async (req, res) => {
   try {
     const {
       customerId,
-      month,
-      startMonth,
-      endMonth,
-      year,
+      range,
       downloadMode = "manual", // manual | auto | forward
       to,
       cc = [],
+      reportType,
     } = req.body;
 
     /* ---------------- DATE RANGE ---------------- */
-    const now = new Date();
-    const y = year ? Number(year) : now.getFullYear();
-
+    /* ---------------- DATE RANGE ---------------- */
+    /* ---------------- DATE RANGE ---------------- */
     let start, end;
 
-    if (month) {
-      start = new Date(y, Number(month) - 1, 1);
-      end = new Date(y, Number(month), 0, 23, 59, 59);
-    } else if (startMonth && endMonth) {
-      start = new Date(y, Number(startMonth) - 1, 1);
-      end = new Date(y, Number(endMonth), 0, 23, 59, 59);
-    } else if (year) {
-      start = new Date(y, 0, 1);
-      end = new Date(y, 11, 31, 23, 59, 59);
-    } else {
-      start = new Date(now.getFullYear(), now.getMonth(), 1);
-      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    // AUTO MODE → calculate date by reportType
+    if (downloadMode === "auto") {
+      end = new Date(); // current date
+      start = new Date(end); // clone
+
+      switch (reportType) {
+        case "1month":
+          start.setMonth(end.getMonth() - 1);
+          break;
+
+        case "3month":
+          start.setMonth(end.getMonth() - 3);
+          break;
+
+        case "1year":
+          start.setFullYear(end.getFullYear() - 1);
+          break;
+
+        default:
+          return res.status(400).json({
+            error: "Invalid reportType. Use 1month, 3month, or 1year",
+          });
+      }
     }
+    // MANUAL / FORWARD MODE → use range
+    else {
+      if (!range?.startDate || !range?.endDate) {
+        return res.status(400).json({
+          error: "range.startDate and range.endDate are required",
+        });
+      }
+
+      start = new Date(range.startDate);
+      end = new Date(range.endDate);
+    }
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({
+        error: "Invalid date range",
+      });
+    }
+
+    console.log("start", start);
+    console.log("end", end);
+
+
+    /* ---------------- BILLING MONTH CALCULATION ---------------- */
+    const startMonth = new Date(start.getFullYear(), start.getMonth(), 1);
+    const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+
+    const billingMonths =
+      (endMonth.getFullYear() - startMonth.getFullYear()) * 12 +
+      (endMonth.getMonth() - startMonth.getMonth()) +
+      1; // inclusive
+
 
     const formatDate = d =>
       d.toLocaleDateString("en-GB", {
@@ -66,6 +110,7 @@ const generateCustomerReport = async (req, res) => {
 
     const displayStartDate = formatDate(start);
     const displayEndDate = formatDate(end);
+
 
     /* ---------------- CUSTOMER ---------------- */
     const customer = await prisma.customer.findUnique({
@@ -89,7 +134,7 @@ const generateCustomerReport = async (req, res) => {
         types: "company_billing",
       },
       select: {
-        email:true,
+        email: true,
         address1: true,
         address2: true,
         city: true,
@@ -115,30 +160,85 @@ const generateCustomerReport = async (req, res) => {
     const devices = await prisma.device.findMany({
       where: {
         customerTenantId: customer.acronisCustomerTenantId,
+      },
+    });
+
+    //console.log("devices",devices)
+    const tenantId = customer.acronisCustomerTenantId;
+
+    /* ---------------- PLANS (FROM PLAN TABLE) ---------------- */
+    const plans = await prisma.plan.findMany({
+      where: {
+        customerTenantId: tenantId,
         enabled: true,
+        agentId: { not: null },
         createdAt: {
           gte: start.toISOString(),
           lte: end.toISOString(),
         },
       },
-      select: {
-        osFamily: true,
-        policies: {
-          where: { enabled: true },
-          select: { policyName: true },
-        },
-      },
+      orderBy: { createdAt: "desc" },
     });
 
-    /* ---------------- POLICIES ---------------- */
-    const insightPolicies = new Set();
-    devices.forEach(d =>
-      d.policies.forEach(p => insightPolicies.add(p.policyName))
-    );
 
-    const policyListHTML = insightPolicies.size
-      ? [...insightPolicies].map(p => `• ${p}`).join("<br/>")
-      : "• No active policies";
+    /* ---------------- POLICIES (FROM POLICY TABLE) ---------------- */
+    const policies = await prisma.policy.findMany({
+      where: {
+        customerTenantId: tenantId,
+        enabled: true,
+        agentId: { not: null },
+        createdAt: {
+          gte: start.toISOString(),
+          lte: end.toISOString(),
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+
+    /* ---------------- MAP POLICIES BY AGENT ---------------- */
+    const policiesByAgent = policies.reduce((acc, policy) => {
+      if (!acc[policy.agentId]) acc[policy.agentId] = [];
+      acc[policy.agentId].push(policy);
+      return acc;
+    }, {});
+
+
+
+    //console.log("policies", policies);
+    //console.log("plans", plans);
+    /* ---------------- PLAN + POLICY HTML ---------------- */
+    /* ---------------- ACTIVE PLANS & ENABLED POLICIES ---------------- */
+    const planPolicyHTML = plans.length
+      ? plans.map(plan => {
+        const relatedPolicies = policiesByAgent[plan.agentId] || [];
+
+        const planDisplayName = plan.planName || plan.planType || "Unknown Plan";
+
+        const policyHTML = relatedPolicies.length
+          ? relatedPolicies
+            .map(p => {
+              const policyDisplayName = p.planName || p.planType || "Unknown Policy";
+              return `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- ${policyDisplayName}`;
+            })
+            .join("<br/>")
+          : "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- No enabled policies";
+
+        return `
+        • ${planDisplayName}<br/>
+        ${policyHTML}
+      `;
+      }).join("<br/><br/>")
+      : "• No active plans";
+
+
+
+    /* ---------------- POLICIES ---------------- */
+    // const insightPolicies = new Set();
+    // devices.forEach(d =>
+    //   d.policies.forEach(p => insightPolicies.add(p.policyName))
+    // );
+
 
     /* ---------------- OS COUNTS ---------------- */
     const osCount = { windows: 0, linux: 0 };
@@ -151,8 +251,10 @@ const generateCustomerReport = async (req, res) => {
     const totalDevices = osCount.windows + osCount.linux;
 
     /* ---------------- PRICING ---------------- */
-    const UNIT_PRICE = 6;
-    const mdrAmount = totalDevices * UNIT_PRICE;
+    const UNIT_PRICE = 6; // per device per month
+
+    const mdrAmount = totalDevices * UNIT_PRICE * billingMonths;
+
 
     /* ---------------- ITEMS ---------------- */
     const items = [
@@ -161,30 +263,43 @@ const generateCustomerReport = async (req, res) => {
         partNo: "-",
         title: "Insight MDR Service",
         body: `
-          Acronis Cyber Protect Service<br/><br/>
-          <strong>Plan</strong><br/>
-          Enabled Policies:<br/>
-          ${policyListHTML}<br/><br/>
-          <span class="muted">Period: ${displayStartDate} – ${displayEndDate}</span>
-        `,
+    Acronis Cyber Protect Service<br/><br/>
+
+ <strong>Active Plans & Enabled Policies</strong><br/>
+
+${planPolicyHTML}<br/><br/>
+
+
+    <span class="muted">
+      Period: ${displayStartDate} – ${displayEndDate}
+    </span>
+  `,
         qty: null,
         unitPrice: null,
         amount: null,
       },
+
       {
         ln: 2,
         partNo: "-",
         title: "Acronis Cyber Protect MDR Monitoring",
         body: `
-          Enabled Devices (device.enabled = true):<br/>
-          • Windows: ${osCount.windows}<br/>
-          • Linux: ${osCount.linux}<br/><br/>
-          <span class="muted">Period: ${displayStartDate} – ${displayEndDate}</span>
-        `,
-        qty: totalDevices,
+    Number of Devices (${totalDevices}):<br/>
+    • Windows: ${osCount.windows}<br/>
+    • Linux: ${osCount.linux}<br/><br/>
+
+    Billing Period:<br/>
+    • ${billingMonths} month(s)<br/><br/>
+
+    <span class="muted">
+      Period: ${displayStartDate} – ${displayEndDate}
+    </span>
+  `,
+        qty: totalDevices * billingMonths,
         unitPrice: UNIT_PRICE,
         amount: mdrAmount,
-      },
+      }
+
     ];
 
     /* ---------------- TOTALS ---------------- */
@@ -377,10 +492,43 @@ Swift Code: UOVBSGSG<br/>
     pdf.create(html, { format: "A4" }).toBuffer(async (err, buffer) => {
       if (err) return res.status(500).send("PDF generation failed");
 
+      /* ---------------- FILE SYSTEM SAVE ---------------- */
+      const customerFolder = path.join(UPLOAD_BASE, String(customerId));
+
+      if (!fs.existsSync(customerFolder)) {
+        fs.mkdirSync(customerFolder, { recursive: true });
+      }
+
+      const fileName = `${invoiceNo}.pdf`;
+      const filePath = path.join(customerFolder, fileName);
+
+      fs.writeFileSync(filePath, buffer);
+
+      /* ---------------- SAVE INVOICE TO DB ---------------- */
+      const invoiceRecord = await prisma.invoice.create({
+        data: {
+          customerId: Number(customerId),
+          startDate: start,
+          endDate: end,
+          generated: true,
+          category: "mdr",
+          type: "invoice",
+          mailto: contact?.email ?? null,
+          mailcc: cc.length ? cc : null,
+          terms: 30,
+          paymentStatus: "pending",
+          invoicePath: {
+            fileName,
+            path: `uploads/invoices/${customerId}/${fileName}`,
+          },
+        },
+      });
+
+      /* ---------------- RESPONSE HANDLING ---------------- */
       if (downloadMode === "manual") {
         res.set({
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename=${invoiceNo}.pdf`,
+          "Content-Disposition": `attachment; filename=${fileName}`,
           "Content-Length": buffer.length,
         });
         return res.send(buffer);
@@ -388,25 +536,39 @@ Swift Code: UOVBSGSG<br/>
 
       if (downloadMode === "auto") {
         await sendMail({
-          to: contact?.email,        // customer email
-          cc,               // cc emails array or string
-          attachment: buffer, // PDF buffer
+          to: contact?.email,
+          cc,
+          attachment: buffer,
         });
 
         return res.json({
           success: true,
-          message: "Invoice sent automatically",
+          invoiceId: invoiceRecord.id,
+          message: "Invoice generated & emailed successfully",
         });
       }
 
       if (downloadMode === "forward") {
-        if (!to) return res.status(400).json({ error: "`to` email required" });
-        // sendMail({ to, cc, attachment: buffer });
-        return res.json({ success: true, message: "Invoice forwarded successfully" });
+        if (!to) {
+          return res.status(400).json({ error: "`to` email required" });
+        }
+
+        await sendMail({
+          to,
+          cc,
+          attachment: buffer,
+        });
+
+        return res.json({
+          success: true,
+          invoiceId: invoiceRecord.id,
+          message: "Invoice forwarded successfully",
+        });
       }
 
       return res.status(400).json({ error: "Invalid downloadMode" });
     });
+
 
   } catch (err) {
     console.error(err);
@@ -414,4 +576,136 @@ Swift Code: UOVBSGSG<br/>
   }
 };
 
-module.exports = { generateCustomerReport };
+
+const list = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const searchKeyword = req.query.searchKeyword || '';
+    const { id } = req.query;
+
+    if (isNaN(Number(id))) {
+      return res
+        .status(STATUS_CODES.BAD_REQUEST)
+        .json({ error: ERROR_MESSAGES.BAD_REQUEST });
+    }
+
+    const skip = (page - 1) * limit;
+
+    let whereCondition = {
+      customerId: Number(id),
+    };
+
+    // ✅ If search keyword is date (YYYY-MM-DD)
+    if (searchKeyword) {
+      const parsedDate = new Date(searchKeyword);
+
+      if (!isNaN(parsedDate.getTime())) {
+        const startOfDay = new Date(parsedDate);
+        startOfDay.setHours(0, 0, 0, 0);
+
+        const endOfDay = new Date(parsedDate);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        whereCondition.startDate = {
+          gte: startOfDay,
+          lte: endOfDay,
+        };
+      }
+    }
+
+    const [totalCount, contacts] = await Promise.all([
+      prisma.invoice.count({ where: whereCondition }),
+      prisma.invoice.findMany({
+        where: whereCondition,
+        skip,
+        take: limit,
+        orderBy: { id: "desc" },
+        select: {
+          id: true,
+          customerId: true,
+          startDate: true,
+          endDate: true,
+          terms: true,
+          paymentStatus: true,
+          invoicePath: true,
+        },
+      }),
+    ]);
+
+    return res.status(STATUS_CODES.OK).json({
+      data: contacts,
+      pagination: {
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+        currentPage: page,
+        pageSize: limit,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(STATUS_CODES.INTERNAL_ERROR)
+      .json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+  }
+};
+
+const paymentStatus = async (req, res) => {
+  try {
+    const { id, paymentStatus } = req.body;
+
+    if (!id || isNaN(Number(id))) {
+      return res
+        .status(STATUS_CODES.BAD_REQUEST)
+        .json({ error: ERROR_MESSAGES.BAD_REQUEST });
+    }
+
+    const result = await prisma.invoice.update({
+      where: {
+        id: Number(id),
+      },
+      data: {
+        paymentStatus,
+      },
+    });
+
+    return res.status(STATUS_CODES.OK).json(result);
+  } catch (error) {
+    console.error(error);
+
+    // record not found
+    if (error.code === "P2025") {
+      return res
+        .status(STATUS_CODES.NOT_FOUND)
+        .json({ error: "Invoice not found" });
+    }
+
+    return res
+      .status(STATUS_CODES.INTERNAL_ERROR)
+      .json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+  }
+};
+
+const deletes = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (isNaN(parseInt(id))) {
+      return res.status(STATUS_CODES.BAD_REQUEST).json({ error: ERROR_MESSAGES.BAD_REQUEST });
+    }
+
+    await prisma.invoice.delete({
+      where: {
+        id: parseInt(id),
+      },
+    });
+
+    res.status(STATUS_CODES.NO_CONTENT).send();
+  } catch (error) {
+    console.error(error);
+    res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+  }
+};
+
+
+module.exports = { generateCustomerReport, list, paymentStatus, deletes };

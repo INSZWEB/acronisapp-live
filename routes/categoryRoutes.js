@@ -8,6 +8,8 @@ router.get('/count',apiMiddleware, categoryController.alertCategory);
 router.get('/migration',apiMiddleware, categoryController.alertMigration);
 router.get('/alert',apiMiddleware, categoryController.alertSummary);
 router.get('/device',apiMiddleware, categoryController.alertDevice);
+router.get('/resource',apiMiddleware, categoryController.resource);
+
 
 
 

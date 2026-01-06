@@ -3,16 +3,13 @@ const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 
-
 // -----------------------------
 // Get Interval from Settings
 // -----------------------------
 async function getIntervalHours() {
   const settings = await prisma.settings.findUnique({ where: { id: 1 } });
-  // Default to 12 hours if null
   return settings?.customerPolicyInterval ?? 2;
 }
-
 
 // -------------------------------------------
 // 1. LOAD ACTIVE CREDENTIALS
@@ -27,6 +24,7 @@ async function getCredentials() {
 // 2. ACRONIS API HELPERS
 // -------------------------------------------
 async function getToken(cred) {
+  
   const url = `${cred.datacenterUrl}/api/2/idp/token`;
 
   const res = await axios.post(
@@ -54,39 +52,38 @@ async function apiGet(url, token, params = {}) {
 // -------------------------------------------
 // 3. FETCH DATA
 // -------------------------------------------
-
 async function fetchPolicies(token, cred) {
-  //console.log("token",token)
+  console.log("token",token)
   const url = `${cred.datacenterUrl}/api/policy_management/v4/policies`;
   const data = await apiGet(url, token);
 
+  //console.log("data.items",JSON.stringify(data.items,null,2))
   return data.items || [];
 }
 
 async function fetchPolicyApplications(token, cred, policyId) {
+  
   const url = `${cred.datacenterUrl}/api/policy_management/v4/applications`;
-
-  const data = await apiGet(url, token, {
-    policy_id: policyId,
-  });
-
+  const data = await apiGet(url, token, { policy_id: policyId });
   return data.items || [];
 }
 
-
-async function saveProtectionPlan(cred, pol, agentId = null) {
-  return prisma.policy.upsert({
+// -------------------------------------------
+// 4. SAVE PLAN (ONE ROW PER AGENT)
+// -------------------------------------------
+async function saveProtectionPlan(cred, pol, agentId) {
+  return prisma.plan.upsert({
     where: {
-      customerTenantId_policyId: {
+      customerTenantId_policyId_agentId: {
         customerTenantId: cred.customerTenantId,
         policyId: pol.id,
+        agentId,
       },
     },
     update: {
       planName: pol.name,
       planType: pol.type,
       enabled: pol.enabled,
-      agentId, // 👈
     },
     create: {
       customerTenantId: cred.customerTenantId,
@@ -94,41 +91,14 @@ async function saveProtectionPlan(cred, pol, agentId = null) {
       planName: pol.name,
       planType: pol.type,
       enabled: pol.enabled,
-      agentId, // 👈
+      agentId,
     },
   });
 }
 
-
-
-// async function saveProtectionPlan(cred, pol) {
-//   return prisma.plan.upsert({
-//     where: {
-//       customerTenantId_policyId: {
-//         customerTenantId: cred.customerTenantId,
-//         policyId: pol.id,
-//       },
-//     },
-//     update: {
-//       planName: pol.name,
-//       planType: pol.type,
-//       enabled: pol.enabled,
-//     },
-//     create: {
-//       customerTenantId: cred.customerTenantId,
-//       policyId: pol.id,
-//       planName: pol.name,
-//       planType: pol.type,
-//       enabled: pol.enabled,
-//     },
-//   });
-// }
-
 // -------------------------------------------
-// 5. MAIN
+// 5. MAIN PROCESS
 // -------------------------------------------
-
-
 async function processAllCredentials() {
   try {
     const credentials = await getCredentials();
@@ -137,49 +107,50 @@ async function processAllCredentials() {
       return;
     }
 
-
     for (const cred of credentials) {
       console.log(`\n===== CUSTOMER ${cred.customerTenantId} =====`);
 
       const token = await getToken(cred);
-
       const policies = await fetchPolicies(token, cred);
 
-
-      console.log("\n🛡 FILTERED: PROTECTION PLANS ONLY");
-      console.log("=================================\n");
       let planCount = 0;
+
       for (const container of policies) {
         for (const pol of container.policy || []) {
-          if (pol.type !== "policy.protection.total") {
-            planCount++;
-            // 🔽 fetch applications for this policy
-            const appGroups = await fetchPolicyApplications(token, cred, pol.id);
+          if (pol.type !== "policy.protection.total") continue;
 
-            // get first agentId (if exists)
-            let agentId = null;
+          planCount++;
 
-            for (const group of appGroups) {
-              for (const app of group) {
-                if (app.agent_id) {
-                  agentId = app.agent_id;
-                  break;
-                }
+          const appGroups = await fetchPolicyApplications(
+            token,
+            cred,
+            pol.id
+          );
+
+          // ✅ collect ALL agentIds
+          const agentIds = new Set();
+
+          for (const group of appGroups) {
+            for (const app of group) {
+              if (app.agent_id) {
+                agentIds.add(app.agent_id);
               }
-              if (agentId) break;
             }
+          }
 
+          // save one row per agent
+          for (const agentId of agentIds) {
             await saveProtectionPlan(cred, pol, agentId);
+            console.log(`✅ Saved: ${pol.name} | Agent: ${agentId}`);
+          }
 
-            console.log(`✅ Saved: ${pol.name} | Agent: ${agentId ?? "N/A"}`);
-
-
+          if (!agentIds.size) {
+            console.log(`⚠️ ${pol.name} has no agents`);
           }
         }
       }
 
       console.log(`\n✅ Total Protection Plans Found: ${planCount}`);
-      console.log("\n========== DONE ==========\n");
     }
 
     console.log("\n=============== ALL DONE ===============");
@@ -188,21 +159,17 @@ async function processAllCredentials() {
   }
 }
 
-
-
-// -----------------------------
-// Schedule Job Every N Hours
-// -----------------------------
+// -------------------------------------------
+// 6. SCHEDULER
+// -------------------------------------------
 (async function scheduleJob() {
   const intervalHours = await getIntervalHours();
-  const intervalMs = intervalHours * 60 * 60 * 1000; // convert hours → ms
+  const intervalMs = intervalHours * 60 * 60 * 1000;
 
   console.log(`Policy sync will run every ${intervalHours} hour(s).`);
 
-  // Run immediately
   await processAllCredentials();
 
-  // Schedule interval
   setInterval(async () => {
     console.log(`Running policy sync at ${new Date().toISOString()}`);
     await processAllCredentials();

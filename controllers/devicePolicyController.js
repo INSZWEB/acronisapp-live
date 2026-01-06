@@ -9,57 +9,104 @@ const prisma = new PrismaClient();
  *  - agentId (optional)
  *  - category = PLAN | POLICY (optional)
  */
+// exports.getDevicePolicies = async (req, res) => {
+   
+//   try {
+//     const {  agentId } = req.query;
+
+//     if (!agentId) {
+//       return res.status(400).json({
+//         count: 0,
+//         data: [],
+//         message: "agentId is required",
+//       });
+//     }
+
+//     const where = {
+//       ...(agentId && { agentId }),
+//     };
+
+//     const data = await prisma.policy.findMany({
+//       where,
+//       select: {
+//         planName: true,
+//         planType:true,
+//         enabled: true,
+//       },
+//       orderBy: {
+//         enabled: "desc",
+//       },
+//     });
+
+//     return res.json({
+//       count: data.length,
+//       data,
+//     });
+//   } catch (err) {
+//     console.error("getDevicePlan error:", err);
+
+//     return res.status(500).json({
+//       count: 0,
+//       data: [],
+//       message: "Failed to fetch device policies",
+//     });
+//   }
+// };
+
+
 exports.getDevicePolicies = async (req, res) => {
-    try {
-        const {
-            customerTenantId,
-            deviceId,
-            agentId,
-            category,
-        } = req.query;
+  try {
+    const { agentId, page = 1, limit = 10 } = req.query;
 
-        if (!customerTenantId) {
-            return res.status(400).json({
-                message: "customerTenantId is required",
-            });
-        }
-
-        const where = {
-            customerTenantId,
-            ...(deviceId && { deviceId: Number(deviceId) }),
-            ...(agentId && { agentId }),
-            ...(category && { category }),
-        };
-
-        const data = await prisma.devicePolicy.findMany({
-            where,
-            include: {
-                device: {
-                    select: {
-                        hostname: true,
-                        agentId: true,
-                        osFamily: true,
-                    },
-                },
-            },
-            orderBy: {
-                updatedAt: "desc",
-            },
-        });
-
-        res.json({
-            count: data.length,
-            data,
-        });
-    } catch (err) {
-        res.status(500).json({
-            message: "Failed to fetch device policies",
-            error: err.message,
-        });
+    if (!agentId) {
+      return res.status(400).json({
+        count: 0,
+        data: [],
+        message: "agentId is required",
+      });
     }
+
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // total count (for pagination UI)
+    const total = await prisma.policy.count({
+      where: { agentId },
+    });
+
+    const data = await prisma.policy.findMany({
+      where: { agentId },
+      select: {
+        planName: true,
+        planType: true,
+        enabled: true,
+      },
+      orderBy: [
+        { enabled: "desc" },     // ✅ enabled first
+      ],
+      skip,
+      take: limitNum,
+    });
+
+    return res.json({
+      count: data.length,        // items in this page
+      total,                     // total records
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
+      data,
+    });
+  } catch (err) {
+    console.error("getDevicePolicies error:", err);
+
+    return res.status(500).json({
+      count: 0,
+      data: [],
+      message: "Failed to fetch device policies",
+    });
+  }
 };
-
-
 
 /**
  * GET /api/device-policies/plans
@@ -90,14 +137,14 @@ exports.getPoliciesByDevice = async (req, res) => {
         const skip = (page - 1) * limit;
 
         // total count (without pagination)
-        const count = await prisma.devicePolicy.count({
+        const count = await prisma.policy.count({
             where: {
                 deviceId: Number(deviceId),
             },
         });
 
         // paginated data
-        const data = await prisma.devicePolicy.findMany({
+        const data = await prisma.policy.findMany({
             where: {
                 deviceId: Number(deviceId),
             },

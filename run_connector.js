@@ -74,6 +74,7 @@ async function getAccessToken(creds) {
 async function fetchAlerts(creds, token) {
     const url = `${creds.dcUrl}/api/alert_manager/v1/alerts`;
 
+    //console.log("token",token)
     const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` },
         params: { severity: "or(warning,critical)" }

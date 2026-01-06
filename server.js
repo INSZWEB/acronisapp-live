@@ -26,6 +26,8 @@ const customerContactRoutes = require('./routes/customerContactRoutes.js');
 const invoiceRoutes = require('./routes/invoiceRoutes.js');
 const contractRoutes = require('./routes/contractRoutes.js');
 const categoryRoutes = require('./routes/categoryRoutes.js');
+const planRoutes = require('./routes/planRoutes.js');
+const syncContactRoutes = require("./routes/syncContactRoutes.js");
 
 //app.use(express.json());
 app.use(express.json({ limit: "10mb" }));
@@ -89,7 +91,10 @@ app.use("/report",reportRoutes);
 app.use("/customercontact",customerContactRoutes);
 app.use("/invoice",invoiceRoutes);
 app.use("/contract",contractRoutes);
-app.use("/category",categoryRoutes)
+app.use("/category",categoryRoutes);
+app.use("/plan",planRoutes);
+app.use("/synccontact",syncContactRoutes);
+
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
