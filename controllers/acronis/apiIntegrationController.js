@@ -16,7 +16,7 @@ const getApiIntegration = async (req, res) => {
     const partnerTenantId = context?.tenant_id;
     const clientId = payload?.client_id;
     const clientSecret = payload?.secret_key;
-    const datacenterUrl = payload?.data_center_url;
+    const datacenterUrl = context?.datacenter_url;
     const customerTenantId = payload?.customer_name;
 
     if (!partnerTenantId || !clientId || !clientSecret || !datacenterUrl || !customerTenantId) {
