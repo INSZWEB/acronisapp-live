@@ -200,7 +200,7 @@ async function processAllCredentials() {
   console.log(`Policy sync will run every ${intervalHours} hour(s).`);
 
   // Run immediately
-  await processAllCredentials();
+ // await processAllCredentials();
 
   // Schedule interval
   setInterval(async () => {
