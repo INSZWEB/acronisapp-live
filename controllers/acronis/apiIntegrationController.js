@@ -36,7 +36,7 @@ const getApiIntegration = async (req, res) => {
         // ❌ Already exists → ERROR response
         if (existingCredential) {
             return res.json({
-                type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration_api_error.v1.91",
+                type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration_api_error.v1.94",
                 request_id,
                 response_id,
                 payload: {
@@ -59,7 +59,7 @@ const getApiIntegration = async (req, res) => {
 
         // ✅ Success response
         return res.json({
-            type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration_customer_api_success.v1.91",
+            type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration_customer_api_success.v1.94",
             request_id,
             response_id,
             payload: {
@@ -74,7 +74,7 @@ const getApiIntegration = async (req, res) => {
 
     } catch (err) {
         return res.status(500).json({
-            type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration_api_error.v1.91",
+            type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.api_integration_api_error.v1.94",
             request_id,
             response_id,
             payload: {
