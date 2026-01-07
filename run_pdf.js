@@ -14,7 +14,7 @@ const footerImg = img64("uploads/logo/footer.jpg");
 const endImg    = img64("uploads/logo/endpage.png");
 
 (async () => {
-  const browser = await puppeteer.launch({ headless: "new" });
+  const browser = await puppeteer.launch({ headless: "new", args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   const page = await browser.newPage();
 
   await page.setContent(`
