@@ -37,7 +37,7 @@ const getParnterApiIntegration = async (req, res) => {
     if (existingCredential) {
       // ✅ Already exists → return success message
       return res.json({
-        type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.partner_api_integration_partner_api_success.v1.95",
+        type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.partner_api_integration_partner_api_success.v1.96",
         request_id,
         response_id,
         payload: {
@@ -62,7 +62,7 @@ const getParnterApiIntegration = async (req, res) => {
 
     // ✅ New success response
     return res.json({
-      type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.partner_api_integration_partner_api_success.v1.95",
+      type: "cti.a.p.acgw.response.v1.0~insightz_technology_pte_ltd.insightz_technology.partner_api_integration_partner_api_success.v1.96",
       request_id,
       response_id,
       payload: {
