@@ -45,13 +45,13 @@ const loadBase64 = (p) =>
    LOAD IMAGES
 ================================ */
 const firstPageImg = loadBase64("uploads/logo/firstpage.png");
-const headerImg = loadBase64("uploads/logo/header.jpg");
-const footerImg = loadBase64("uploads/logo/footer.jpg");
+const headerImg = loadBase64("uploads/logo/header.png");
+const footerImg = loadBase64("uploads/logo/footer.png");
 const endPageImg = loadBase64("uploads/logo/endpage.png");
 
 const generateCustomerReport = async (req, res) => {
   try {
-    const { chartImage } = req.body;
+    const { chartImage,deviceImage } = req.body;
     const { customerId, range,
       downloadMode = "manual", // manual | auto | forward
       to,
@@ -242,11 +242,11 @@ const generateCustomerReport = async (req, res) => {
 
     // Load images as base64
     const headerBase64 = `data:image/png;base64,${fs.readFileSync(
-      path.join(__dirname, "../uploads/logo/header.jpg")
+      path.join(__dirname, "../uploads/logo/header.png")
     ).toString("base64")}`;
 
     const footerBase64 = `data:image/png;base64,${fs.readFileSync(
-      path.join(__dirname, "../uploads/logo/footer.jpg")
+      path.join(__dirname, "../uploads/logo/footer.png")
     ).toString("base64")}`;
 
     // // Main content HTML
@@ -438,6 +438,7 @@ tr { page-break-inside: avoid; }
 
 ${chartImage ? `<img src="${chartImage}" />` : ""}
 <div class="page-break"></div>
+${deviceImage ? `<img src="${deviceImage}" />` : ""}
 <h3>Device List</h3>
 <table>
 <thead>
@@ -539,23 +540,23 @@ ${chartImage ? `<img src="${chartImage}" />` : ""}
         const SECTION1_PAGE_INDEX = 2;  // Page 3
         const SECTION2_PAGE_INDEX = 4;  // Page 5
 
-        const tocPage = mergedPages[TOC_PAGE_INDEX];
+        // const tocPage = mergedPages[TOC_PAGE_INDEX];
 
-        const tocLinks = [
-          { y: 650, target: SECTION1_PAGE_INDEX },
-          { y: 620, target: SECTION2_PAGE_INDEX },
-        ];
+        // const tocLinks = [
+        //   { y: 650, target: SECTION1_PAGE_INDEX },
+        //   { y: 620, target: SECTION2_PAGE_INDEX },
+        // ];
 
-        tocLinks.forEach((item) => {
-          tocPage.drawRectangle({
-            x: 50,
-            y: item.y,
-            width: 400,
-            height: 18,
-            opacity: 0,
-            link: mergedPages[item.target],
-          });
-        });
+        // tocLinks.forEach((item) => {
+        //   tocPage.drawRectangle({
+        //     x: 50,
+        //     y: item.y,
+        //     width: 400,
+        //     height: 18,
+        //     opacity: 0,
+        //     link: mergedPages[item.target],
+        //   });
+        // });
 
         /* ---------------- FINAL PDF BUFFER ---------------- */
         const finalPdfBytes = await finalPdf.save();

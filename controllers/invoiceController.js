@@ -39,8 +39,10 @@ const generateCustomerReport = async (req, res) => {
       to,
       cc = [],
       reportType,
+      contractInvoice = false
     } = req.body;
 
+    console.log("contractInvoice", contractInvoice)
     /* ---------------- DATE RANGE ---------------- */
     /* ---------------- DATE RANGE ---------------- */
     /* ---------------- DATE RANGE ---------------- */
@@ -156,13 +158,25 @@ const generateCustomerReport = async (req, res) => {
         .filter(Boolean)
         .join("<br/>")
       : "N/A";
-
     /* ---------------- DEVICES ---------------- */
+    const whereClause = {
+      customerTenantId: customer.acronisCustomerTenantId,
+    };
+
+    if (contractInvoice === true) {
+      whereClause.registrationDate = {
+        gte: start,
+        lte: end,
+      };
+    }
+
     const devices = await prisma.device.findMany({
-      where: {
-        customerTenantId: customer.acronisCustomerTenantId,
-      },
+      where: whereClause,
     });
+
+    console.log("devices", devices);
+
+
 
     //console.log("devices",devices)
     const tenantId = customer.acronisCustomerTenantId;
@@ -335,11 +349,6 @@ body {
   padding: 12px 16px;
 }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 0;
-}
 
 p {
   margin: 2px 0;
@@ -349,28 +358,34 @@ h6 {
   margin: 6px 0;
 }
 
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 8px 6px;
+  text-align: left;
+  vertical-align: top; /* key fix */
+  box-sizing: border-box;
+}
+
 thead th {
-  border-bottom: 1px solid #eee;
-  padding: 6px 5px;
+  font-weight: bold;
+  border-bottom: 1px solid #ddd;
 }
 
 tbody td {
-  padding: 6px 5px;
-  vertical-align: top;
-}
-
-tbody tr:not(:last-child) td {
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .desc-title {
-  font-weight: bold;
-  margin-bottom: 2px;
+  font-weight: 600;
 }
 
 .desc-body {
-  font-size: 11.5px;
-  line-height: 1.4;
+  font-size: 12px;
+  color: #555;
 }
 
 .muted {
@@ -464,7 +479,7 @@ tbody tr:not(:last-child) td {
         <!-- RIGHT: Invoice Info (aligned right, text left) -->
        <td width="50%" style="border: none; vertical-align: top; text-align: right;padding-right:"20px">
             <div style="display:inline-block; text-align:left; font-size:13px;">
-   <strong>   <p style="margin-right:30px;">
+   <strong>   <p style="margin-right:38px;">
       PO No: 202508148081227<br/>
       Sales: LSD<br/>
       Payment Terms: 30 Days
@@ -504,12 +519,29 @@ ${items.map(i => `
 </table>
 
 
-<!-- Totals (FIXED AT BOTTOM) -->
-<div class="totals">
-  <p>Total: SGD ${total.toFixed(2)}</p>
-  <p>GST (9%): SGD ${gst.toFixed(2)}</p>
-  <p class="grand">Grand Total: SGD ${grandTotal.toFixed(2)}</p>
-</div>
+
+<table style="width: 35%; margin-left: auto; border-collapse: collapse; margin-top: 6px; text-align: right;">
+
+  <tr>
+    <td colspan="4"></td>
+    <td style="text-align: right; padding: 6px 5px;"><strong>Total:</strong></td>
+    <td style="text-align: right; padding: 6px 5px;"> SGD ${total.toFixed(2)}</td>
+  </tr>
+  <tr>
+    <td colspan="4"></td>
+    <td style="text-align: right; padding: 6px 5px;"><strong>GST (9%):</strong></td>
+    <td style="text-align: right; padding: 6px 5px;">SGD ${gst.toFixed(2)}</td>
+  </tr>
+  <tr>
+    <td colspan="4"></td>
+    <td style="text-align: right; padding: 6px 5px; border-top: 1px solid #eee;">
+      <strong>Grand Total:</strong>
+    </td>
+    <td style="text-align: right; padding: 6px 5px; border-top: 1px solid #eee;">
+      <strong> SGD ${grandTotal.toFixed(2)}</strong>
+    </td>
+  </tr>
+</table>
  <table width="100%" style="border: none; margin-top:0;padding-top:0;">
     <tr><td>
   <div >
@@ -618,120 +650,161 @@ Swift Code: UOVBSGSG<br/>
 
     console.log("🧾 [1] Starting PDF generation");
 
-   
-      console.log("🧾 [1] Starting PDF generation");
 
-      const file = { content: html };
-      const options = { format: "A4", printBackground: true };
+    console.log("🧾 [1] Starting PDF generation");
+
+    const file = { content: html };
+    const options = { format: "A4", printBackground: true };
 
 
-      try {
-        buffer = await pdf.generatePdf(file, options);
-        console.log("✅ [2] PDF generated successfully");
-      } catch (err) {
-        console.error("❌ PDF generation failed:", err);
-        return res.status(500).send("PDF generation failed");
-      }
+    try {
+      buffer = await pdf.generatePdf(file, options);
+      console.log("✅ [2] PDF generated successfully");
+    } catch (err) {
+      console.error("❌ PDF generation failed:", err);
+      return res.status(500).send("PDF generation failed");
+    }
 
-      /* FILE SAVE */
-      const customerFolder = path.join(UPLOAD_BASE, String(customerId));
-      if (!fs.existsSync(customerFolder)) {
-        fs.mkdirSync(customerFolder, { recursive: true });
-      }
+    /* FILE SAVE */
+    const customerFolder = path.join(UPLOAD_BASE, String(customerId));
+    if (!fs.existsSync(customerFolder)) {
+      fs.mkdirSync(customerFolder, { recursive: true });
+    }
 
-      const fileName = `${invoiceNo}.pdf`;
-      const filePath = path.join(customerFolder, fileName);
-      fs.writeFileSync(filePath, buffer);
+    const fileName = `${invoiceNo}.pdf`;
+    const filePath = path.join(customerFolder, fileName);
+    fs.writeFileSync(filePath, buffer);
 
-      /* DB SAVE */
-      const invoiceRecord = await prisma.invoice.create({
-        data: {
-          customerId: Number(customerId),
-          startDate: start,
-          endDate: end,
-          generated: true,
-          category: "mdr",
-          type: "invoice",
-          mailto: contact?.email ?? null,
-          mailcc: cc.length ? cc : null,
-          terms: 30,
-          paymentStatus: "pending",
-          invoicePath: {
-            fileName,
-            path: `uploads/invoices/${customerId}/${fileName}`,
-          },
+    /* DB SAVE */
+    const invoiceRecord = await prisma.invoice.create({
+      data: {
+        customerId: Number(customerId),
+        startDate: start,
+        endDate: end,
+        generated: true,
+        category: "mdr",
+        type: "invoice",
+        mailto: contact?.email ?? null,
+        mailcc: cc.length ? cc : null,
+        terms: 30,
+        paymentStatus: "pending",
+        invoicePath: {
+          fileName,
+          path: `uploads/invoices/${customerId}/${fileName}`,
         },
+      },
+    });
+
+    const cid = parseInt(customerId);
+    const devicesCount = parseInt(totalDevices);
+
+    let seats = devicesCount;
+
+    if (contractInvoice === true) {
+      // Fetch existing contract
+      const existingContract = await prisma.customerContract.findUnique({
+        where: { customerId: cid },
+        select: { seats: true },
       });
 
+      console.log("existingContract", existingContract)
+      console.log("existingContract?.seats", existingContract?.seats)
+      console.log("devicesCount", devicesCount)
+      seats = (existingContract?.seats || 0) + devicesCount;
+    }
 
-      console.log("✅ [5] Invoice saved in DB");
-      console.log("🆔 Invoice ID:", invoiceRecord.id);
+console.log("seats",seats)
 
-      /* ---------------- RESPONSE HANDLING ---------------- */
-      console.log("🚦 [6] Handling downloadMode:", downloadMode);
+    const result = await prisma.customerContract.upsert({
+      where: {
+        customerId: cid,
+      },
+      update: {
+        startDate: start,
+        endDate: end,
+        seats: seats, // 👈 updated seats
+      },
+      create: {
+        customerId: cid,
+        startDate: start,
+        endDate: end,
+        serialNumber: "12234567890",
+        installationId: "67890",
+        name: "Insightz Technology",
+        seats: devicesCount, // 👈 only totalDevices for new contract
+      },
+    });
 
-      if (downloadMode === "manual") {
-        console.log("⬇️ [7] Manual download selected");
 
-        res.set({
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename=${fileName}`,
-          "Content-Length": buffer.length,
-        });
 
-        console.log("✅ PDF sent to browser");
-        return res.send(buffer);
+    console.log("✅ [5] Invoice saved in DB");
+    console.log("🆔 Invoice ID:", invoiceRecord.id);
+
+    /* ---------------- RESPONSE HANDLING ---------------- */
+    console.log("🚦 [6] Handling downloadMode:", downloadMode);
+
+    if (downloadMode === "manual") {
+      console.log("⬇️ [7] Manual download selected");
+
+      res.set({
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename=${fileName}`,
+        "Content-Length": buffer.length,
+      });
+
+      console.log("✅ PDF sent to browser");
+      return res.send(buffer);
+    }
+
+    if (downloadMode === "auto") {
+      console.log("📧 [7] Auto email mode");
+      console.log("📤 Sending email to:", contact?.email);
+      console.log("📄 CC:", cc);
+
+      await sendMail({
+        to: contact?.email,
+        cc,
+        attachment: buffer,
+      });
+
+      console.log("✅ Email sent successfully");
+
+      return res.json({
+        success: true,
+        invoiceId: invoiceRecord.id,
+        message: "Invoice generated & emailed successfully",
+      });
+    }
+
+    if (downloadMode === "forward") {
+      console.log("📨 [7] Forward mode");
+
+      if (!to) {
+        console.warn("⚠️ Missing `to` email");
+        return res.status(400).json({ error: "`to` email required" });
       }
 
-      if (downloadMode === "auto") {
-        console.log("📧 [7] Auto email mode");
-        console.log("📤 Sending email to:", contact?.email);
-        console.log("📄 CC:", cc);
+      console.log("📤 Forwarding email to:", to);
+      console.log("📄 CC:", cc);
 
-        await sendMail({
-          to: contact?.email,
-          cc,
-          attachment: buffer,
-        });
+      await sendMail({
+        to,
+        cc,
+        attachment: buffer,
+      });
 
-        console.log("✅ Email sent successfully");
+      console.log("✅ Invoice forwarded successfully");
 
-        return res.json({
-          success: true,
-          invoiceId: invoiceRecord.id,
-          message: "Invoice generated & emailed successfully",
-        });
-      }
+      return res.json({
+        success: true,
+        invoiceId: invoiceRecord.id,
+        message: "Invoice forwarded successfully",
+      });
+    }
 
-      if (downloadMode === "forward") {
-        console.log("📨 [7] Forward mode");
+    console.warn("❌ [7] Invalid downloadMode:", downloadMode);
+    return res.status(400).json({ error: "Invalid downloadMode" });
 
-        if (!to) {
-          console.warn("⚠️ Missing `to` email");
-          return res.status(400).json({ error: "`to` email required" });
-        }
-
-        console.log("📤 Forwarding email to:", to);
-        console.log("📄 CC:", cc);
-
-        await sendMail({
-          to,
-          cc,
-          attachment: buffer,
-        });
-
-        console.log("✅ Invoice forwarded successfully");
-
-        return res.json({
-          success: true,
-          invoiceId: invoiceRecord.id,
-          message: "Invoice forwarded successfully",
-        });
-      }
-
-      console.warn("❌ [7] Invalid downloadMode:", downloadMode);
-      return res.status(400).json({ error: "Invalid downloadMode" });
-    
   } catch (err) {
     console.error(err);
     res.status(500).send("Error generating invoice");

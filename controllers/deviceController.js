@@ -310,27 +310,31 @@ const deviceController = {
             return res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
         }
     },
-       customerCount: async (req, res) => {
+    customerCount: async (req, res) => {
         try {
             const { id } = req.query;
 
             if (isNaN(parseInt(id))) {
-                return res.status(STATUS_CODES.BAD_REQUEST).json({ error: ERROR_MESSAGES.BAD_REQUEST });
+                return res.status(STATUS_CODES.BAD_REQUEST).json({
+                    error: ERROR_MESSAGES.BAD_REQUEST
+                });
             }
 
-            // 1️⃣ Get partnerTenantId from customer table
+            // 1️⃣ Get customerTenantId
             const customer = await prisma.customer.findUnique({
                 where: { id: parseInt(id) },
                 select: { acronisCustomerTenantId: true }
             });
 
             if (!customer) {
-                return res.status(STATUS_CODES.NOT_FOUND).json({ error: ERROR_MESSAGES.USER_NOT_FOUND });
+                return res.status(STATUS_CODES.NOT_FOUND).json({
+                    error: ERROR_MESSAGES.USER_NOT_FOUND
+                });
             }
 
             const customerTenantId = customer.acronisCustomerTenantId;
 
-            // 2️⃣ Count enabled = true
+            // 2️⃣ Count enabled devices
             const enabledCount = await prisma.device.count({
                 where: {
                     customerTenantId,
@@ -338,25 +342,33 @@ const deviceController = {
                 }
             });
 
-            // // 3️⃣ Count enabled = false
-            // const disabledCount = await prisma.device.count({
-            //     where: {
-            //         partnerTenantId,
-            //         enabled: false
-            //     }
-            // });
+            // 3️⃣ Get last device registration date
+            const lastDevice = await prisma.device.findFirst({
+                where: {
+                    customerTenantId
+                },
+                orderBy: {
+                    registrationDate: 'desc'
+                },
+                select: {
+                    registrationDate: true
+                }
+            });
 
-            // 4️⃣ Return counts
+            // 4️⃣ Response
             return res.status(STATUS_CODES.OK).json({
                 enabled: enabledCount,
-                // disabled: disabledCount
+                lastDeviceRegistrationDate: lastDevice?.registrationDate || null
             });
 
         } catch (error) {
             console.error(error);
-            return res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+            return res.status(STATUS_CODES.INTERNAL_ERROR).json({
+                error: ERROR_MESSAGES.INTERNAL_ERROR
+            });
         }
     },
+
     parentcount: async (req, res) => {
         try {
 

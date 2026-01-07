@@ -6,6 +6,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { createTransporter } = require('../config/mailConfig')
 const nodemailer = require('nodemailer');
+const speakeasy = require("speakeasy");
+const QRCode = require("qrcode");
 
 const JWT_SECRET = process.env.JWT_SECRET;
 // Nodemailer setup (use your email service credentials)
@@ -26,6 +28,64 @@ const generateResetToken = (userId, email) => {
         { expiresIn: '1h' }  // Directly use '1h' to test
     );
 };
+
+const issueTokenAndRespond = async (user, res) => {
+    // --- Create JWT ---
+    const token = jwt.sign(
+        {
+            id: user.id,
+            email: user.email,
+            branchId: user.branchId,
+            siteId: user.branchId,
+            departmentId: user.departmentNameId,
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "1d" }
+    );
+
+    // --- Fetch role permissions ---
+    const rolePermissions = await prisma.userRole.findUnique({
+        where: { id: user.roleId },
+        include: {
+            modules: {
+                select: {
+                    roleId: true,
+                    moduleId: true,
+                    view: true,
+                    add: true,
+                    edit: true,
+                    delete: true,
+                    module: { select: { id: true, moduleName: true } },
+                },
+            },
+        },
+    });
+
+    const formattedPermissions = {
+        ...rolePermissions,
+        modules: rolePermissions.modules.map(m => ({
+            ...m,
+            moduleName: m.module.moduleName
+        }))
+    };
+
+    return res.status(STATUS_CODES.OK).json({
+        message: ERROR_MESSAGES.LOGIN_SUCCESS,
+        token,
+        user: {
+            id: user.id,
+            email: user.email,
+            displayName: user.displayName,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            branchId: user.branchId,
+            userType: user.roles?.roleName || null,
+            rolePermission: formattedPermissions,
+            tempPassword: user.tempPassword
+        },
+    });
+};
+
 const verifyToken = (token) => {
     try {
         // Use your JWT secret key to verify the token
@@ -36,15 +96,133 @@ const verifyToken = (token) => {
     }
 };
 const authController = {
+    // login: async (req, res) => {
+    //     try {
+    //         const { email, password } = req.body;
+
+    //         // --- Find user by email ---
+    //         const user = await prisma.user.findUnique({
+    //             where: { email },
+    //             include: {
+    //                 roles: {   // <-- your relation User.role (roleId)
+    //                     select: {
+    //                         id: true,
+    //                         roleName: true
+    //                     }
+    //                 }
+    //             }
+    //         });
+
+    //         if (!user) {
+    //             return res
+    //                 .status(STATUS_CODES.UNAUTHORIZED)
+    //                 .json({ error: ERROR_MESSAGES.INVALID_CREDENTIALS });
+    //         }
+
+    //         // --- Check if user has permission to login ---
+    //         // if (!user.isSelfLogin) {
+    //         //     return res
+    //         //         .status(STATUS_CODES.FORBIDDEN)
+    //         //         .json({ error: ERROR_MESSAGES.NO_PERMISSION_TO_LOGIN });
+    //         // }
+
+    //         // --- Check account status ---
+    //         if (user.status !== "Active") {
+    //             return res
+    //                 .status(STATUS_CODES.FORBIDDEN)
+    //                 .json({ error: ERROR_MESSAGES.ACCOUNT_INACTIVE });
+    //         }
+
+    //         // --- Verify password ---
+    //         const isMatch = await bcrypt.compare(password, user.password);
+    //         if (!isMatch) {
+    //             return res
+    //                 .status(STATUS_CODES.UNAUTHORIZED)
+    //                 .json({ error: ERROR_MESSAGES.INVALID_CREDENTIALS });
+    //         }
+
+    //         // --- Auto verify email ---
+    //         if (!user.emailVerified) {
+    //             await prisma.user.update({
+    //                 where: { id: user.id },
+    //                 data: { emailVerified: true },
+    //             });
+    //         }
+
+    //         // --- Create JWT Token ---
+    //         const token = jwt.sign(
+    //             {
+    //                 id: user.id,
+    //                 email: user.email,
+    //                 branchId: user.branchId,
+    //                 siteId: user.branchId,
+    //                 departmentId: user.departmentNameId,
+    //             },
+    //             process.env.JWT_SECRET,
+    //             { expiresIn: "1d" }
+    //         );
+
+    //         // --- Fetch role permissions using user.roleId ---
+    //         const rolePermissions = await prisma.userRole.findUnique({
+    //             where: { id: user.roleId },
+    //             include: {
+    //                 modules: {
+    //                     select: {
+    //                         roleId: true,
+    //                         moduleId: true,
+    //                         view: true,
+    //                         add: true,
+    //                         edit: true,
+    //                         delete: true,
+    //                         module: { select: { id: true, moduleName: true } },
+    //                     },
+    //                 },
+    //             },
+    //         });
+
+    //         // format modules
+    //         const formattedPermissions = {
+    //             ...rolePermissions,
+    //             modules: rolePermissions.modules.map(m => ({
+    //                 ...m,
+    //                 moduleName: m.module.moduleName
+    //             }))
+    //         };
+
+    //         // --- Final Response ---
+    //         return res.status(STATUS_CODES.OK).json({
+    //             message: ERROR_MESSAGES.LOGIN_SUCCESS,
+    //             token,
+    //             user: {
+    //                 id: user.id,
+    //                 email: user.email,
+    //                 displayName: user.displayName,
+    //                 firstName: user.firstName,
+    //                 lastName: user.lastName,
+    //                 branchId: user.branchId,
+    //                 userType: user.roles.roleName,   // <-- FINAL USER TYPE
+    //                 rolePermission: formattedPermissions,
+    //                 tempPassword: user.tempPassword
+    //             },
+    //         });
+
+    //     } catch (error) {
+    //         console.error("Login error:", error);
+    //         return res
+    //             .status(STATUS_CODES.INTERNAL_ERROR)
+    //             .json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+    //     }
+    // },
+
+
     login: async (req, res) => {
         try {
             const { email, password } = req.body;
 
-            // --- Find user by email ---
             const user = await prisma.user.findUnique({
                 where: { email },
                 include: {
-                    roles: {   // <-- your relation User.role (roleId)
+                    roles: {
                         select: {
                             id: true,
                             roleName: true
@@ -59,14 +237,6 @@ const authController = {
                     .json({ error: ERROR_MESSAGES.INVALID_CREDENTIALS });
             }
 
-            // --- Check if user has permission to login ---
-            // if (!user.isSelfLogin) {
-            //     return res
-            //         .status(STATUS_CODES.FORBIDDEN)
-            //         .json({ error: ERROR_MESSAGES.NO_PERMISSION_TO_LOGIN });
-            // }
-
-            // --- Check account status ---
             if (user.status !== "Active") {
                 return res
                     .status(STATUS_CODES.FORBIDDEN)
@@ -81,6 +251,16 @@ const authController = {
                     .json({ error: ERROR_MESSAGES.INVALID_CREDENTIALS });
             }
 
+            // 🔐 MFA CHECK (ADD THIS BLOCK)
+            if (user.mfaEnabled) {
+                return res.status(200).json({
+                    mfaRequired: true,
+                    userId: user.id,
+                    qrCodeShow: user.qrCodeShow,
+                    message: "OTP required"
+                });
+            }
+
             // --- Auto verify email ---
             if (!user.emailVerified) {
                 await prisma.user.update({
@@ -89,7 +269,7 @@ const authController = {
                 });
             }
 
-            // --- Create JWT Token ---
+            // --- Create JWT Token (ONLY if MFA not enabled) ---
             const token = jwt.sign(
                 {
                     id: user.id,
@@ -102,7 +282,7 @@ const authController = {
                 { expiresIn: "1d" }
             );
 
-            // --- Fetch role permissions using user.roleId ---
+            // --- Fetch role permissions ---
             const rolePermissions = await prisma.userRole.findUnique({
                 where: { id: user.roleId },
                 include: {
@@ -120,7 +300,6 @@ const authController = {
                 },
             });
 
-            // format modules
             const formattedPermissions = {
                 ...rolePermissions,
                 modules: rolePermissions.modules.map(m => ({
@@ -129,7 +308,6 @@ const authController = {
                 }))
             };
 
-            // --- Final Response ---
             return res.status(STATUS_CODES.OK).json({
                 message: ERROR_MESSAGES.LOGIN_SUCCESS,
                 token,
@@ -140,7 +318,7 @@ const authController = {
                     firstName: user.firstName,
                     lastName: user.lastName,
                     branchId: user.branchId,
-                    userType: user.roles.roleName,   // <-- FINAL USER TYPE
+                    userType: user.roles.roleName,
                     rolePermission: formattedPermissions,
                     tempPassword: user.tempPassword
                 },
@@ -153,8 +331,142 @@ const authController = {
                 .json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
         }
     },
+    setupMfa: async (req, res) => {
+        try {
+            const { userId } = req.body;
 
+            const user = await prisma.user.findUnique({
+                where: { id: userId }
+            });
 
+            if (!user) {
+                return res.status(404).json({ error: "User not found" });
+            }
+
+            // ⛔ Prevent re-setup
+            if (!user.qrCodeShow) {
+                return res.status(400).json({ error: "MFA already enabled" });
+            }
+
+            // Generate secret
+            const secret = speakeasy.generateSecret({
+                name: `Insightz (${user.email})`,
+            });
+
+            // Save secret TEMPORARILY (before verification)
+            await prisma.user.update({
+                where: { id: userId },
+                data: {
+                    mfaSecret: secret.base32,
+                    qrCodeShow: false
+                },
+            });
+
+            // Generate QR
+            const qrCode = await QRCode.toDataURL(secret.otpauth_url);
+
+            res.json({
+                qrCode,
+                message: "Scan QR code using Google Authenticator"
+            });
+
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ error: "MFA setup failed" });
+        }
+    },
+    otpVerify: async (req, res) => {
+        const { userId, otp } = req.body;
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                roles: {
+                    select: {
+                        id: true,
+                        roleName: true
+                    }
+                }
+            }
+        });
+        if (!user || !user.mfaSecret) {
+            return res.status(401).json({ error: "Invalid request" });
+        }
+
+        const valid = speakeasy.totp.verify({
+            secret: user.mfaSecret,
+            encoding: "base32",
+            token: otp,
+            window: 1,
+        });
+
+        if (!valid) {
+            return res.status(401).json({ error: "Invalid OTP" });
+        }
+
+        // ✅ ENABLE MFA AFTER FIRST SUCCESS
+        if (!user.mfaEnabled) {
+            await prisma.user.update({
+                where: { id: userId },
+                data: { mfaEnabled: true },
+            });
+        }
+
+        // ✅ Issue JWT
+        // --- Create JWT Token (ONLY if MFA not enabled) ---
+        const token = jwt.sign(
+            {
+                id: user.id,
+                email: user.email,
+                branchId: user.branchId,
+                siteId: user.branchId,
+                departmentId: user.departmentNameId,
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: "1d" }
+        );
+
+        // --- Fetch role permissions ---
+        const rolePermissions = await prisma.userRole.findUnique({
+            where: { id: user.roleId },
+            include: {
+                modules: {
+                    select: {
+                        roleId: true,
+                        moduleId: true,
+                        view: true,
+                        add: true,
+                        edit: true,
+                        delete: true,
+                        module: { select: { id: true, moduleName: true } },
+                    },
+                },
+            },
+        });
+
+        const formattedPermissions = {
+            ...rolePermissions,
+            modules: rolePermissions.modules.map(m => ({
+                ...m,
+                moduleName: m.module.moduleName
+            }))
+        };
+
+        return res.status(STATUS_CODES.OK).json({
+            message: ERROR_MESSAGES.LOGIN_SUCCESS,
+            token,
+            user: {
+                id: user.id,
+                email: user.email,
+                displayName: user.displayName,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                branchId: user.branchId,
+                userType: user.roles.roleName,
+                rolePermission: formattedPermissions,
+                tempPassword: user.tempPassword
+            },
+        });
+    },
 
     editProfile: async (req, res) => {
         try {
@@ -247,7 +559,7 @@ const authController = {
     },
     newPassword: async (req, res) => {
         try {
-            const { currentPassword, newPassword, confirmNewPassword,userId } = req.body;
+            const { currentPassword, newPassword, confirmNewPassword, userId } = req.body;
 
 
             // Check if newPassword and confirmNewPassword match
@@ -281,7 +593,7 @@ const authController = {
                 where: {
                     id: user.id
                 },
-                data: { password: hashedNewPassword ,tempPassword:false}
+                data: { password: hashedNewPassword, tempPassword: false }
             });
 
             res.status(STATUS_CODES.OK).json({ message: ERROR_MESSAGES.PASSWORD_UPDATE_SUCCESS });

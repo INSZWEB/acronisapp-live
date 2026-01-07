@@ -44,4 +44,10 @@ router.put('/update-verifiedemail', authController.updateVerifiedEmail);
 router.post("/logout", authController.logout);
 // Endpoint to update profile image
 router.post('/update-profile-image', upload.single('profileImage'),authController.uploadImage);
+
+
+router.post('/mfa/setup',authController.setupMfa);
+router.post('/otp-verify',authController.otpVerify);
+
+
 module.exports = router;
