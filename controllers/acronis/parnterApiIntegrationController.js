@@ -47,7 +47,7 @@ const getParnterApiIntegration = async (req, res) => {
     const partnerTenantId = context?.tenant_id;
     const clientId = payload?.client_id;
     const clientSecret = payload?.secret_key;
-    const datacenterUrl = payload?.data_center_url;
+    const datacenterUrl = context?.datacenter_url;
 
     if (!partnerTenantId || !clientId || !clientSecret || !datacenterUrl) {
         return res.status(400).json({
