@@ -52,11 +52,7 @@ const endPageImg = loadBase64("uploads/logo/endpage.png");
 const generateCustomerReport = async (req, res) => {
   try {
     const { chartImage,deviceImage } = req.body;
-    const { customerId, range,
-      downloadMode = "manual", // manual | auto | forward
-      to,
-      cc = [],
-      reportType, } = req.body;
+    const { customerId, range,downloadMode = "manual", to,  cc = [],reportType, } = req.body;
 
     if (!customerId) return res.status(400).send("customerId is required");
 

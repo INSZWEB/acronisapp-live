@@ -238,7 +238,7 @@ const parnterController = {
                     currentState: true,
                     contactName: true,
                     contactEmail: true,
-                    preferredDate:true,
+                    preferredDate: true,
                     PreferredSlot: true,
                     TimeZone: true,
 
@@ -335,6 +335,73 @@ const parnterController = {
             res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
         }
     },
+    selectSiderbar: async (req, res) => {
+        try {
+            const page = parseInt(req.query.page) || ERROR_MESSAGES.DEFAULT_PAGE;
+            const limit = parseInt(req.query.limit) || ERROR_MESSAGES.DEFAULT_LIMIT;
+            const searchKeyword = req.query.searchKeyword || '';
+            const searchStatus = req.query.searchStatus || '';
+
+            const searchKeywordLower = searchKeyword.toLowerCase();
+
+            if (page <= 0 || limit <= 0) {
+                return res
+                    .status(STATUS_CODES.BAD_REQUEST)
+                    .json({ error: MESSAGES.INVALID_PAGINATION_PARAMETERS });
+            }
+
+            const skip = (page - 1) * limit;
+
+            // ---------------------------
+            // WHERE CONDITION
+            // ---------------------------
+            const whereCondition = {
+                AND: [
+                    {
+                        OR: [
+                            {
+                                tenantName: {
+                                    contains: searchKeywordLower,
+                                },
+                            },
+                        ],
+                    },
+                ],
+            };
+
+            const [totalCount, result] = await Promise.all([
+                prisma.partner.count({ where: whereCondition }),
+                prisma.partner.findMany({
+                    where: whereCondition,
+                    select: {
+                        id: true,
+                        tenantName: true,
+                    },
+                    skip,
+                    take: limit,
+                    orderBy: { id: 'desc' },
+                }),
+            ]);
+
+            const totalPages = Math.ceil(totalCount / limit);
+
+            res.status(STATUS_CODES.OK).json({
+                data: result,
+                pagination: {
+                    totalCount,
+                    totalPages,
+                    currentPage: page,
+                    pageSize: limit,
+                },
+            });
+        } catch (error) {
+            console.error(error);
+            res
+                .status(STATUS_CODES.INTERNAL_ERROR)
+                .json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+        }
+    },
+
 
 };
 

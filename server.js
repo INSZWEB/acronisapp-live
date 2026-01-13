@@ -28,6 +28,9 @@ const contractRoutes = require('./routes/contractRoutes.js');
 const categoryRoutes = require('./routes/categoryRoutes.js');
 const planRoutes = require('./routes/planRoutes.js');
 const syncContactRoutes = require("./routes/syncContactRoutes.js");
+const reportsRoutes = require("./routes/reportsRoutes.js");
+const kickoffRoutes = require("./routes/kickoffRoutes");
+const ParnterKickoffRoutes = require("./routes/ParnterKickoffRoutes.js");
 
 //app.use(express.json());
 app.use(express.json({ limit: "10mb" }));
@@ -36,7 +39,7 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 app.use(cors({
     origin: (origin, callback) => {
-	     const allowedOrigins = [ 'http://localhost:3000','https://acronismdr.insightzmss.com'];
+	     const allowedOrigins = [ 'http://localhost:3000','https://acronismdr.insightzmss.com',"http://192.168.1.72:3000"];
 
         // Allow requests with no origin (like Postman or Curl requests)
         if (!origin || allowedOrigins.includes(origin)) {
@@ -73,6 +76,18 @@ app.get("/api/protected", (req, res) => {
     }
 });
 
+app.get("/test", async (req, res) => {
+  try {
+    const result = await testSMTP();
+    res.status(result.success ? 200 : 500).json(result);
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+});
+
 app.use(cookieParser()); // Add this to parse cookies
 app.use('/auth', authRoutes);
 app.use('/modules', moduleRoutes);
@@ -94,7 +109,9 @@ app.use("/contract",contractRoutes);
 app.use("/category",categoryRoutes);
 app.use("/plan",planRoutes);
 app.use("/synccontact",syncContactRoutes);
-
+app.use('/g',reportsRoutes)
+app.use("/kickoff", kickoffRoutes);
+app.use("/parnterKickoff",ParnterKickoffRoutes)
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

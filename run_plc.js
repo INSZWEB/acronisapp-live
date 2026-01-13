@@ -3,34 +3,32 @@ const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 
+/* --------------------------------
+   POLICY CACHE (PLAN + CHILD)
+-------------------------------- */
+const policyCache = new Map();
 
-// -----------------------------
-// Get Interval from Settings
-// -----------------------------
+/* --------------------------------
+   SETTINGS
+-------------------------------- */
 async function getIntervalHours() {
   const settings = await prisma.settings.findUnique({ where: { id: 1 } });
-  // Default to 12 hours if null
   return settings?.customerPolicyInterval ?? 2;
 }
 
-
-// -------------------------------------------
-// 1. LOAD ACTIVE CREDENTIALS
-// -------------------------------------------
+/* --------------------------------
+   CREDENTIALS
+-------------------------------- */
 async function getCredentials() {
-  return prisma.credential.findMany({
-    where: { active: true },
-  });
+  return prisma.credential.findMany({ where: { active: true } });
 }
 
-// -------------------------------------------
-// 2. ACRONIS API HELPERS
-// -------------------------------------------
+/* --------------------------------
+   AUTH
+-------------------------------- */
 async function getToken(cred) {
-  const url = `${cred.datacenterUrl}/api/2/idp/token`;
-
   const res = await axios.post(
-    url,
+    `${cred.datacenterUrl}/api/2/idp/token`,
     new URLSearchParams({ grant_type: "client_credentials" }),
     {
       auth: {
@@ -39,7 +37,6 @@ async function getToken(cred) {
       },
     }
   );
-
   return res.data.access_token;
 }
 
@@ -51,160 +48,245 @@ async function apiGet(url, token, params = {}) {
   return res.data;
 }
 
-// -------------------------------------------
-// 3. FETCH DATA
-// -------------------------------------------
+/* --------------------------------
+   FETCH APIs
+-------------------------------- */
+async function fetchDevices(token, cred) {
+  const data = await apiGet(
+    `${cred.datacenterUrl}/api/resource_management/v4/resources`,
+    token,
+    { type: "resource.machine" }
+  );
+  return data.items || [];
+}
+
+async function fetchPlanApplications(token, cred) {
+  const data = await apiGet(
+    `${cred.datacenterUrl}/api/policy_management/v4/applications`,
+    token,
+    { policy_type: "policy.protection.total" }
+  );
+  return data.items.flat();
+}
 
 async function fetchPolicies(token, cred) {
-  //console.log("token",token)
-  const url = `${cred.datacenterUrl}/api/policy_management/v4/policies`;
-  const data = await apiGet(url, token);
-
-  return data.items || [];
+  const data = await apiGet(
+    `${cred.datacenterUrl}/api/policy_management/v4/policies`,
+    token
+  );
+  return data.items.flatMap(i => i.policy || []);
 }
 
-async function fetchPolicyApplications(token, cred, policyId) {
-  const url = `${cred.datacenterUrl}/api/policy_management/v4/applications`;
+async function fetchPolicyById(token, cred, policyId) {
+  if (policyCache.has(policyId)) {
+    return policyCache.get(policyId);
+  }
 
-  const data = await apiGet(url, token, {
-    policy_id: policyId,
-  });
+  const data = await apiGet(
+    `${cred.datacenterUrl}/api/policy_management/v4/policies/${policyId}`,
+    token
+  );
 
-  return data.items || [];
+  policyCache.set(policyId, data);
+  return data;
 }
 
+async function fetchAgentDetails(token, cred, agentId) {
+  return apiGet(
+    `${cred.datacenterUrl}/api/agent_manager/v2/agents/${agentId}`,
+    token
+  );
+}
 
-async function saveProtectionPlan(cred, pol, agentId = null) {
-  return prisma.policy.upsert({
+/* --------------------------------
+   DB SAVE HELPERS
+-------------------------------- */
+async function saveDevice(device, agentDetails, cred) {
+  await prisma.device.upsert({
     where: {
-      customerTenantId_policyId: {
+      customerTenantId_agentId: {
         customerTenantId: cred.customerTenantId,
-        policyId: pol.id,
+        agentId: device.agent_id,
       },
     },
     update: {
-      planName: pol.name,
-      planType: pol.type,
-      enabled: pol.enabled,
-      agentId, // 👈
+      hostname: agentDetails.hostname || device.name,
+      online: agentDetails.online,
+      enabled: agentDetails.enabled,
+      osFamily: agentDetails.platform?.family ?? null,
+      registrationDate: agentDetails.registration_date
+        ? new Date(agentDetails.registration_date)
+        : null,
+      units: agentDetails.units ?? null,
     },
     create: {
       customerTenantId: cred.customerTenantId,
-      policyId: pol.id,
-      planName: pol.name,
-      planType: pol.type,
-      enabled: pol.enabled,
-      agentId, // 👈
+      agentId: device.agent_id,
+      hostname: agentDetails.hostname || device.name,
+      online: agentDetails.online,
+      enabled: agentDetails.enabled,
+      osFamily: agentDetails.platform?.family ?? null,
+      registrationDate: agentDetails.registration_date
+        ? new Date(agentDetails.registration_date)
+        : null,
+      units: agentDetails.units ?? null,
     },
   });
 }
 
 
+async function savePlan({ cred, agentId, planId, planName, enabled }) {
+  await prisma.plan.upsert({
+    where: {
+      customerTenantId_policyId_agentId: {
+        customerTenantId: cred.customerTenantId,
+        policyId: planId,
+        agentId,
+      },
+    },
+    update: {
+      planName,
+      enabled,
+      planType: "policy.protection.total",
+    },
+    create: {
+      customerTenantId: cred.customerTenantId,
+      policyId: planId,
+      planName,
+      planType: "policy.protection.total",
+      enabled,
+      agentId,
+    },
+  });
+}
 
-// async function saveProtectionPlan(cred, pol) {
-//   return prisma.plan.upsert({
-//     where: {
-//       customerTenantId_policyId: {
-//         customerTenantId: cred.customerTenantId,
-//         policyId: pol.id,
-//       },
-//     },
-//     update: {
-//       planName: pol.name,
-//       planType: pol.type,
-//       enabled: pol.enabled,
-//     },
-//     create: {
-//       customerTenantId: cred.customerTenantId,
-//       policyId: pol.id,
-//       planName: pol.name,
-//       planType: pol.type,
-//       enabled: pol.enabled,
-//     },
-//   });
-// }
+async function savePolicy({
+  cred,
+  agentId,
+  policyId,
+  planType,
+  planName,
+  enabled,
+}) {
+  await prisma.policy.upsert({
+    where: {
+      customerTenantId_policyId_agentId: {
+        customerTenantId: cred.customerTenantId,
+        policyId,
+        agentId
+      },
+    },
+    update: {
+      planType,
+      planName,
+      enabled,
+      agentId,
+    },
+    create: {
+      customerTenantId: cred.customerTenantId,
+      policyId,
+      planType,
+      planName,
+      enabled,
+      agentId,
+    },
+  });
+}
 
-// -------------------------------------------
-// 5. MAIN
-// -------------------------------------------
+/* --------------------------------
+   PROCESS + FILTER + STORE
+-------------------------------- */
+async function processDevices(devices, planApps, policies, token, cred) {
+  for (const device of devices) {
+    const agentId = device.agent_id;
 
+    const agentPlans = planApps.filter(p => p.agent_id === agentId);
+    if (!agentPlans.length) continue;
 
-async function processAllCredentials() {
-  try {
-    const credentials = await getCredentials();
-    if (!credentials.length) {
-      console.log("❌ No active credentials found");
-      return;
-    }
+    for (const planApp of agentPlans) {
+      const planId = planApp.policy.id;
 
+      const childPolicies = policies.filter(
+        p => Array.isArray(p.parent_ids) && p.parent_ids.includes(planId)
+      );
+      if (!childPolicies.length) continue;
 
-    for (const cred of credentials) {
-      console.log(`\n===== CUSTOMER ${cred.customerTenantId} =====`);
+      // ✅ FILTER: EDR OR ANTIMALWARE
+      const hasRequiredPolicy = childPolicies.some(
+        p =>
+          (p.type === "policy.security.edr" && p.enabled === true) ||
+          (p.type === "policy.security.antimalware_protection" &&
+            p.enabled === true)
+      );
+      if (!hasRequiredPolicy) continue;
 
-      const token = await getToken(cred);
+      // PLAN NAME
+      const planDetails = await fetchPolicyById(token, cred, planId);
+      const planName =
+        planDetails?.policy?.[0]?.name ?? "Unknown Plan";
 
-      const policies = await fetchPolicies(token, cred);
+      // 🔹 FETCH AGENT DETAILS
+      const agentDetails = await fetchAgentDetails(token, cred, agentId);
 
+      // 🔹 SAVE DEVICE WITH AGENT DATA
+      await saveDevice(device, agentDetails, cred);
 
-      console.log("\n🛡 FILTERED: PROTECTION PLANS ONLY");
-      console.log("=================================\n");
-      let planCount = 0;
-      for (const container of policies) {
-        for (const pol of container.policy || []) {
-          if (pol.type !== "policy.protection.total") {
-            planCount++;
-            // 🔽 fetch applications for this policy
-            const appGroups = await fetchPolicyApplications(token, cred, pol.id);
+      // SAVE PLAN
+      await savePlan({
+        cred,
+        agentId,
+        planId,
+        planName,
+        enabled: planDetails?.policy?.[0]?.enabled ?? true,
+      });
 
-            // get first agentId (if exists)
-            let agentId = null;
+      // SAVE CHILD POLICIES
+      for (const p of childPolicies) {
+        const childPolicyDetails = await fetchPolicyById(token, cred, p.id);
+        const childPolicyName =
+          childPolicyDetails?.policy?.[0]?.name ?? p.type;
 
-            for (const group of appGroups) {
-              for (const app of group) {
-                if (app.agent_id) {
-                  agentId = app.agent_id;
-                  break;
-                }
-              }
-              if (agentId) break;
-            }
-
-            await saveProtectionPlan(cred, pol, agentId);
-
-            console.log(`✅ Saved: ${pol.name} | Agent: ${agentId ?? "N/A"}`);
-
-
-          }
-        }
+        await savePolicy({
+          cred,
+          agentId,
+          policyId: p.id,
+          planType: p.type,
+          planName: childPolicyName,
+          enabled: p.enabled,
+        });
       }
-
-      console.log(`\n✅ Total Protection Plans Found: ${planCount}`);
-      console.log("\n========== DONE ==========\n");
     }
-
-    console.log("\n=============== ALL DONE ===============");
-  } catch (err) {
-    console.error("ERROR:", err.response?.data || err.message);
   }
 }
 
+/* --------------------------------
+   MAIN
+-------------------------------- */
+async function processAllCredentials() {
+  const credentials = await getCredentials();
+  if (!credentials.length) return;
 
+  for (const cred of credentials) {
+    console.log(`\n===== CUSTOMER ${cred.customerTenantId} =====`);
 
-// -----------------------------
-// Schedule Job Every N Hours
-// -----------------------------
-(async function scheduleJob() {
-  const intervalHours = await getIntervalHours();
-  const intervalMs = intervalHours * 60 * 60 * 1000; // convert hours → ms
+    const token = await getToken(cred);
 
-  console.log(`Policy sync will run every ${intervalHours} hour(s).`);
+    const devices = await fetchDevices(token, cred);
+    const planApps = await fetchPlanApplications(token, cred);
+    const policies = await fetchPolicies(token, cred);
 
-  // Run immediately
- // await processAllCredentials();
+    await processDevices(devices, planApps, policies, token, cred);
+  }
+}
 
-  // Schedule interval
-  setInterval(async () => {
-    console.log(`Running policy sync at ${new Date().toISOString()}`);
-    await processAllCredentials();
-  }, intervalMs);
+/* --------------------------------
+   SCHEDULER
+-------------------------------- */
+(async function schedule() {
+  const hours = await getIntervalHours();
+  console.log(`Device-plan-policy sync every ${hours} hour(s)`);
+
+  await processAllCredentials();
+
+  setInterval(processAllCredentials, hours * 60 * 60 * 1000);
 })();

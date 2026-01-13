@@ -94,182 +94,203 @@ const generateCustomerReport = async (req, res) => {
     console.log("end", end);
 
 
+    // ⛔ Prevent duplicate invoice for same customer & period
+
+    const existingInvoice = await prisma.invoice.findFirst({
+      where: {
+        customerId: Number(customerId),
+        startDate: start,
+        endDate: end,
+        category: "mdr",
+        type: "invoice",
+      },
+    })
+
+
+    if (existingInvoice) {
+      return res.status(200).json({
+        success: false,
+        message: "Invoice already generated for this customer and date range",
+        invoiceId: existingInvoice.id,
+      });
+    }
+  
     /* ---------------- BILLING MONTH CALCULATION ---------------- */
     const startMonth = new Date(start.getFullYear(), start.getMonth(), 1);
-    const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+  const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
 
-    const billingMonths =
-      (endMonth.getFullYear() - startMonth.getFullYear()) * 12 +
-      (endMonth.getMonth() - startMonth.getMonth()) +
-      1; // inclusive
-
-
-    const formatDate = d =>
-      d.toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
-
-    const displayStartDate = formatDate(start);
-    const displayEndDate = formatDate(end);
+  const billingMonths =
+    (endMonth.getFullYear() - startMonth.getFullYear()) * 12 +
+    (endMonth.getMonth() - startMonth.getMonth()) +
+    1; // inclusive
 
 
-    /* ---------------- CUSTOMER ---------------- */
-    const customer = await prisma.customer.findUnique({
-      where: { id: Number(customerId) },
-      select: {
-        partnerTenantId: true,
-        partnerTenantName: true,
-        acronisCustomerTenantId: true,
-        acronisCustomerTenantName: true,
-      },
+  const formatDate = d =>
+    d.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
     });
 
-    if (!customer?.acronisCustomerTenantId) {
-      return res.status(404).json({ error: "Customer not found" });
-    }
+  const displayStartDate = formatDate(start);
+  const displayEndDate = formatDate(end);
 
-    /* ---------------- CONTACT ---------------- */
-    const contact = await prisma.parnterContact.findFirst({
-      where: {
-        tenantId: customer.partnerTenantId,
-        types: "company_billing",
-      },
-      select: {
-        email: true,
-        address1: true,
-        address2: true,
-        city: true,
-        zipcode: true,
-        state: true,
-        country: true,
-      },
-    });
 
-    const customerAddress = contact
-      ? [
-        contact.address1,
-        contact.address2,
-        `${contact.city ?? ""} ${contact.zipcode ?? ""}`.trim(),
-        contact.state,
-        contact.country,
-      ]
-        .filter(Boolean)
-        .join("<br/>")
-      : "N/A";
-    /* ---------------- DEVICES ---------------- */
-    const whereClause = {
-      customerTenantId: customer.acronisCustomerTenantId,
+  /* ---------------- CUSTOMER ---------------- */
+  const customer = await prisma.customer.findUnique({
+    where: { id: Number(customerId) },
+    select: {
+      partnerTenantId: true,
+      partnerTenantName: true,
+      acronisCustomerTenantId: true,
+      acronisCustomerTenantName: true,
+    },
+  });
+
+  if (!customer?.acronisCustomerTenantId) {
+    return res.status(404).json({ error: "Customer not found" });
+  }
+
+  /* ---------------- CONTACT ---------------- */
+  const contact = await prisma.parnterContact.findFirst({
+    where: {
+      tenantId: customer.partnerTenantId,
+      types: "company_billing",
+    },
+    select: {
+      email: true,
+      address1: true,
+      address2: true,
+      city: true,
+      zipcode: true,
+      state: true,
+      country: true,
+    },
+  });
+
+  const customerAddress = contact
+    ? [
+      contact.address1,
+      contact.address2,
+      `${contact.city ?? ""} ${contact.zipcode ?? ""}`.trim(),
+      contact.state,
+      contact.country,
+    ]
+      .filter(Boolean)
+      .join("<br/>")
+    : "N/A";
+  /* ---------------- DEVICES ---------------- */
+  const whereClause = {
+    customerTenantId: customer.acronisCustomerTenantId,
+  };
+
+  if (contractInvoice === true) {
+    whereClause.registrationDate = {
+      gte: start,
+      lte: end,
     };
+  }
 
-    if (contractInvoice === true) {
-      whereClause.registrationDate = {
-        gte: start,
-        lte: end,
-      };
-    }
+  const devices = await prisma.device.findMany({
+    where: whereClause,
+  });
 
-    const devices = await prisma.device.findMany({
-      where: whereClause,
-    });
-
-    console.log("devices", devices);
+  console.log("devices", devices);
 
 
 
-    //console.log("devices",devices)
-    const tenantId = customer.acronisCustomerTenantId;
+  //console.log("devices",devices)
+  const tenantId = customer.acronisCustomerTenantId;
 
-    /* ---------------- PLANS (FROM PLAN TABLE) ---------------- */
-    const plans = await prisma.plan.findMany({
-      where: {
-        customerTenantId: tenantId,
-        enabled: true,
-        agentId: { not: null },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-
-    /* ---------------- POLICIES (FROM POLICY TABLE) ---------------- */
-    const policies = await prisma.policy.findMany({
-      where: {
-        customerTenantId: tenantId,
-        enabled: true,
-        agentId: { not: null },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+  /* ---------------- PLANS (FROM PLAN TABLE) ---------------- */
+  const plans = await prisma.plan.findMany({
+    where: {
+      customerTenantId: tenantId,
+      enabled: true,
+      agentId: { not: null },
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
 
-    /* ---------------- MAP POLICIES BY AGENT ---------------- */
-    const policiesByAgent = policies.reduce((acc, policy) => {
-      if (!acc[policy.agentId]) acc[policy.agentId] = [];
-      acc[policy.agentId].push(policy);
-      return acc;
-    }, {});
+  /* ---------------- POLICIES (FROM POLICY TABLE) ---------------- */
+  const policies = await prisma.policy.findMany({
+    where: {
+      customerTenantId: tenantId,
+      enabled: true,
+      agentId: { not: null },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+
+  /* ---------------- MAP POLICIES BY AGENT ---------------- */
+  const policiesByAgent = policies.reduce((acc, policy) => {
+    if (!acc[policy.agentId]) acc[policy.agentId] = [];
+    acc[policy.agentId].push(policy);
+    return acc;
+  }, {});
 
 
 
-    //console.log("policies", policies);
-    //console.log("plans", plans);
-    /* ---------------- PLAN + POLICY HTML ---------------- */
-    /* ---------------- ACTIVE PLANS & ENABLED POLICIES ---------------- */
-    const planPolicyHTML = plans.length
-      ? plans.map(plan => {
-        const relatedPolicies = policiesByAgent[plan.agentId] || [];
+  //console.log("policies", policies);
+  //console.log("plans", plans);
+  /* ---------------- PLAN + POLICY HTML ---------------- */
+  /* ---------------- ACTIVE PLANS & ENABLED POLICIES ---------------- */
+  const planPolicyHTML = plans.length
+    ? plans.map(plan => {
+      const relatedPolicies = policiesByAgent[plan.agentId] || [];
 
-        const planDisplayName = plan.planName || plan.planType || "Unknown Plan";
+      const planDisplayName = plan.planName || plan.planType || "Unknown Plan";
 
-        const policyHTML = relatedPolicies.length
-          ? relatedPolicies
-            .map(p => {
-              const policyDisplayName = p.planName || p.planType || "Unknown Policy";
-              return `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- ${policyDisplayName}`;
-            })
-            .join("<br/>")
-          : "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- No enabled policies";
+      const policyHTML = relatedPolicies.length
+        ? relatedPolicies
+          .map(p => {
+            const policyDisplayName = p.planName || p.planType || "Unknown Policy";
+            return `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- ${policyDisplayName}`;
+          })
+          .join("<br/>")
+        : "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- No enabled policies";
 
-        return `
+      return `
         • ${planDisplayName}<br/>
         ${policyHTML}
       `;
-      }).join("<br/><br/>")
-      : "• No active plans";
+    }).join("<br/><br/>")
+    : "• No active plans";
 
 
 
-    /* ---------------- POLICIES ---------------- */
-    // const insightPolicies = new Set();
-    // devices.forEach(d =>
-    //   d.policies.forEach(p => insightPolicies.add(p.policyName))
-    // );
+  /* ---------------- POLICIES ---------------- */
+  // const insightPolicies = new Set();
+  // devices.forEach(d =>
+  //   d.policies.forEach(p => insightPolicies.add(p.policyName))
+  // );
 
 
-    /* ---------------- OS COUNTS ---------------- */
-    const osCount = { windows: 0, linux: 0 };
+  /* ---------------- OS COUNTS ---------------- */
+  const osCount = { windows: 0, linux: 0 };
 
-    devices.forEach(d => {
-      if (d.osFamily?.toLowerCase() === "windows") osCount.windows++;
-      if (d.osFamily?.toLowerCase() === "linux") osCount.linux++;
-    });
+  devices.forEach(d => {
+    if (d.osFamily?.toLowerCase() === "windows") osCount.windows++;
+    if (d.osFamily?.toLowerCase() === "linux") osCount.linux++;
+  });
 
-    const totalDevices = osCount.windows + osCount.linux;
+  const totalDevices = osCount.windows + osCount.linux;
 
-    /* ---------------- PRICING ---------------- */
-    const UNIT_PRICE = 6; // per device per month
+  /* ---------------- PRICING ---------------- */
+  const UNIT_PRICE = 6; // per device per month
 
-    const mdrAmount = totalDevices * UNIT_PRICE * billingMonths;
+  const mdrAmount = totalDevices * UNIT_PRICE * billingMonths;
 
 
-    /* ---------------- ITEMS ---------------- */
-    const items = [
-      {
-        ln: 1,
-        partNo: "-",
-        title: "Insight MDR Service",
-        body: `
+  /* ---------------- ITEMS ---------------- */
+  const items = [
+    {
+      ln: 1,
+      partNo: "-",
+      title: "Insight MDR Service",
+      body: `
     Acronis Cyber Protect Service<br/><br/>
 
  <strong>Active Plans & Enabled Policies</strong><br/>
@@ -281,16 +302,16 @@ ${planPolicyHTML}<br/><br/>
       Period: ${displayStartDate} – ${displayEndDate}
     </span>
   `,
-        qty: null,
-        unitPrice: null,
-        amount: null,
-      },
+      qty: null,
+      unitPrice: null,
+      amount: null,
+    },
 
-      {
-        ln: 2,
-        partNo: "-",
-        title: "Acronis Cyber Protect MDR Monitoring",
-        body: `
+    {
+      ln: 2,
+      partNo: "-",
+      title: "Acronis Cyber Protect MDR Monitoring",
+      body: `
     Number of Devices (${totalDevices}):<br/>
     • Windows: ${osCount.windows}<br/>
     • Linux: ${osCount.linux}<br/><br/>
@@ -302,40 +323,40 @@ ${planPolicyHTML}<br/><br/>
       Period: ${displayStartDate} – ${displayEndDate}
     </span>
   `,
-        qty: totalDevices * billingMonths,
-        unitPrice: UNIT_PRICE,
-        amount: mdrAmount,
-      }
+      qty: totalDevices * billingMonths,
+      unitPrice: UNIT_PRICE,
+      amount: mdrAmount,
+    }
 
-    ];
+  ];
 
-    /* ---------------- TOTALS ---------------- */
-    const total = items.reduce((s, i) => s + (i.amount || 0), 0);
-    const gst = total * 0.09;
-    const grandTotal = total + gst;
+  /* ---------------- TOTALS ---------------- */
+  const total = items.reduce((s, i) => s + (i.amount || 0), 0);
+  const gst = total * 0.09;
+  const grandTotal = total + gst;
 
-    const ROWS_PER_PAGE = 18;
-    const page = Math.max(1, Math.ceil(items.length / ROWS_PER_PAGE));
+  const ROWS_PER_PAGE = 18;
+  const page = Math.max(1, Math.ceil(items.length / ROWS_PER_PAGE));
 
-    const invoiceNo = `INV-${Date.now()}`;
-    const invoiceDate = new Date().toISOString().split("T")[0];
+  const invoiceNo = `INV-${Date.now()}`;
+  const invoiceDate = new Date().toISOString().split("T")[0];
 
-    const invoiceData = {
-      invoiceNo,
-      invoiceDate,
-      page,
-      customerName: customer.acronisCustomerTenantName,
-      customerAddress,
-      items,
-      total,
-      gst,
-      grandTotal,
-    };
+  const invoiceData = {
+    invoiceNo,
+    invoiceDate,
+    page,
+    customerName: customer.acronisCustomerTenantName,
+    customerAddress,
+    items,
+    total,
+    gst,
+    grandTotal,
+  };
 
-    /* ---------------- HTML ---------------- */
-    //const html = `YOUR_HTML_TEMPLATE_HERE`; // 👈 keep your existing HTML exactly
+  /* ---------------- HTML ---------------- */
+  //const html = `YOUR_HTML_TEMPLATE_HERE`; // 👈 keep your existing HTML exactly
 
-    const html = `
+  const html = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -567,248 +588,248 @@ Swift Code: UOVBSGSG<br/>
 `;
 
 
-    /* ---------------- PDF ---------------- */
-    // pdf.create(html, { format: "A4" }).toBuffer(async (err, buffer) => {
-    //   if (err) return res.status(500).send("PDF generation failed");
+  /* ---------------- PDF ---------------- */
+  // pdf.create(html, { format: "A4" }).toBuffer(async (err, buffer) => {
+  //   if (err) return res.status(500).send("PDF generation failed");
 
-    //   /* ---------------- FILE SYSTEM SAVE ---------------- */
-    //   const customerFolder = path.join(UPLOAD_BASE, String(customerId));
+  //   /* ---------------- FILE SYSTEM SAVE ---------------- */
+  //   const customerFolder = path.join(UPLOAD_BASE, String(customerId));
 
-    //   if (!fs.existsSync(customerFolder)) {
-    //     fs.mkdirSync(customerFolder, { recursive: true });
-    //   }
+  //   if (!fs.existsSync(customerFolder)) {
+  //     fs.mkdirSync(customerFolder, { recursive: true });
+  //   }
 
-    //   const fileName = `${invoiceNo}.pdf`;
-    //   const filePath = path.join(customerFolder, fileName);
+  //   const fileName = `${invoiceNo}.pdf`;
+  //   const filePath = path.join(customerFolder, fileName);
 
-    //   fs.writeFileSync(filePath, buffer);
+  //   fs.writeFileSync(filePath, buffer);
 
-    //   /* ---------------- SAVE INVOICE TO DB ---------------- */
-    //   const invoiceRecord = await prisma.invoice.create({
-    //     data: {
-    //       customerId: Number(customerId),
-    //       startDate: start,
-    //       endDate: end,
-    //       generated: true,
-    //       category: "mdr",
-    //       type: "invoice",
-    //       mailto: contact?.email ?? null,
-    //       mailcc: cc.length ? cc : null,
-    //       terms: 30,
-    //       paymentStatus: "pending",
-    //       invoicePath: {
-    //         fileName,
-    //         path: `uploads/invoices/${customerId}/${fileName}`,
-    //       },
-    //     },
-    //   });
+  //   /* ---------------- SAVE INVOICE TO DB ---------------- */
+  //   const invoiceRecord = await prisma.invoice.create({
+  //     data: {
+  //       customerId: Number(customerId),
+  //       startDate: start,
+  //       endDate: end,
+  //       generated: true,
+  //       category: "mdr",
+  //       type: "invoice",
+  //       mailto: contact?.email ?? null,
+  //       mailcc: cc.length ? cc : null,
+  //       terms: 30,
+  //       paymentStatus: "pending",
+  //       invoicePath: {
+  //         fileName,
+  //         path: `uploads/invoices/${customerId}/${fileName}`,
+  //       },
+  //     },
+  //   });
 
-    //   /* ---------------- RESPONSE HANDLING ---------------- */
-    //   if (downloadMode === "manual") {
-    //     res.set({
-    //       "Content-Type": "application/pdf",
-    //       "Content-Disposition": `attachment; filename=${fileName}`,
-    //       "Content-Length": buffer.length,
-    //     });
-    //     return res.send(buffer);
-    //   }
+  //   /* ---------------- RESPONSE HANDLING ---------------- */
+  //   if (downloadMode === "manual") {
+  //     res.set({
+  //       "Content-Type": "application/pdf",
+  //       "Content-Disposition": `attachment; filename=${fileName}`,
+  //       "Content-Length": buffer.length,
+  //     });
+  //     return res.send(buffer);
+  //   }
 
-    //   if (downloadMode === "auto") {
-    //     await sendMail({
-    //       to: contact?.email,
-    //       cc,
-    //       attachment: buffer,
-    //     });
+  //   if (downloadMode === "auto") {
+  //     await sendMail({
+  //       to: contact?.email,
+  //       cc,
+  //       attachment: buffer,
+  //     });
 
-    //     return res.json({
-    //       success: true,
-    //       invoiceId: invoiceRecord.id,
-    //       message: "Invoice generated & emailed successfully",
-    //     });
-    //   }
+  //     return res.json({
+  //       success: true,
+  //       invoiceId: invoiceRecord.id,
+  //       message: "Invoice generated & emailed successfully",
+  //     });
+  //   }
 
-    //   if (downloadMode === "forward") {
-    //     if (!to) {
-    //       return res.status(400).json({ error: "`to` email required" });
-    //     }
+  //   if (downloadMode === "forward") {
+  //     if (!to) {
+  //       return res.status(400).json({ error: "`to` email required" });
+  //     }
 
-    //     await sendMail({
-    //       to,
-    //       cc,
-    //       attachment: buffer,
-    //     });
+  //     await sendMail({
+  //       to,
+  //       cc,
+  //       attachment: buffer,
+  //     });
 
-    //     return res.json({
-    //       success: true,
-    //       invoiceId: invoiceRecord.id,
-    //       message: "Invoice forwarded successfully",
-    //     });
-    //   }
+  //     return res.json({
+  //       success: true,
+  //       invoiceId: invoiceRecord.id,
+  //       message: "Invoice forwarded successfully",
+  //     });
+  //   }
 
-    //   return res.status(400).json({ error: "Invalid downloadMode" });
-    // });
+  //   return res.status(400).json({ error: "Invalid downloadMode" });
+  // });
 
-    console.log("🧾 [1] Starting PDF generation");
-
-
-    console.log("🧾 [1] Starting PDF generation");
-
-    const file = { content: html };
-    const options = { format: "A4", printBackground: true };
+  console.log("🧾 [1] Starting PDF generation");
 
 
-    try {
-      buffer = await pdf.generatePdf(file, options);
-      console.log("✅ [2] PDF generated successfully");
-    } catch (err) {
-      console.error("❌ PDF generation failed:", err);
-      return res.status(500).send("PDF generation failed");
-    }
+  console.log("🧾 [1] Starting PDF generation");
 
-    /* FILE SAVE */
-    const customerFolder = path.join(UPLOAD_BASE, String(customerId));
-    if (!fs.existsSync(customerFolder)) {
-      fs.mkdirSync(customerFolder, { recursive: true });
-    }
-
-    const fileName = `${invoiceNo}.pdf`;
-    const filePath = path.join(customerFolder, fileName);
-    fs.writeFileSync(filePath, buffer);
-
-    /* DB SAVE */
-    const invoiceRecord = await prisma.invoice.create({
-      data: {
-        customerId: Number(customerId),
-        startDate: start,
-        endDate: end,
-        generated: true,
-        category: "mdr",
-        type: "invoice",
-        mailto: contact?.email ?? null,
-        mailcc: cc.length ? cc : null,
-        terms: 30,
-        paymentStatus: "pending",
-        invoicePath: {
-          fileName,
-          path: `uploads/invoices/${customerId}/${fileName}`,
-        },
-      },
-    });
-
-    const cid = parseInt(customerId);
-    const devicesCount = parseInt(totalDevices);
-
-    let seats = devicesCount;
-
-    if (contractInvoice === true) {
-      // Fetch existing contract
-      const existingContract = await prisma.customerContract.findUnique({
-        where: { customerId: cid },
-        select: { seats: true },
-      });
-
-      console.log("existingContract", existingContract)
-      console.log("existingContract?.seats", existingContract?.seats)
-      console.log("devicesCount", devicesCount)
-      seats = (existingContract?.seats || 0) + devicesCount;
-    }
-
-console.log("seats",seats)
-
-    const result = await prisma.customerContract.upsert({
-      where: {
-        customerId: cid,
-      },
-      update: {
-        startDate: start,
-        endDate: end,
-        seats: seats, // 👈 updated seats
-      },
-      create: {
-        customerId: cid,
-        startDate: start,
-        endDate: end,
-        serialNumber: "12234567890",
-        installationId: "67890",
-        name: "Insightz Technology",
-        seats: devicesCount, // 👈 only totalDevices for new contract
-      },
-    });
+  const file = { content: html };
+  const options = { format: "A4", printBackground: true };
 
 
-
-    console.log("✅ [5] Invoice saved in DB");
-    console.log("🆔 Invoice ID:", invoiceRecord.id);
-
-    /* ---------------- RESPONSE HANDLING ---------------- */
-    console.log("🚦 [6] Handling downloadMode:", downloadMode);
-
-    if (downloadMode === "manual") {
-      console.log("⬇️ [7] Manual download selected");
-
-      res.set({
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename=${fileName}`,
-        "Content-Length": buffer.length,
-      });
-
-      console.log("✅ PDF sent to browser");
-      return res.send(buffer);
-    }
-
-    if (downloadMode === "auto") {
-      console.log("📧 [7] Auto email mode");
-      console.log("📤 Sending email to:", contact?.email);
-      console.log("📄 CC:", cc);
-
-      await sendMail({
-        to: contact?.email,
-        cc,
-        attachment: buffer,
-      });
-
-      console.log("✅ Email sent successfully");
-
-      return res.json({
-        success: true,
-        invoiceId: invoiceRecord.id,
-        message: "Invoice generated & emailed successfully",
-      });
-    }
-
-    if (downloadMode === "forward") {
-      console.log("📨 [7] Forward mode");
-
-      if (!to) {
-        console.warn("⚠️ Missing `to` email");
-        return res.status(400).json({ error: "`to` email required" });
-      }
-
-      console.log("📤 Forwarding email to:", to);
-      console.log("📄 CC:", cc);
-
-      await sendMail({
-        to,
-        cc,
-        attachment: buffer,
-      });
-
-      console.log("✅ Invoice forwarded successfully");
-
-      return res.json({
-        success: true,
-        invoiceId: invoiceRecord.id,
-        message: "Invoice forwarded successfully",
-      });
-    }
-
-    console.warn("❌ [7] Invalid downloadMode:", downloadMode);
-    return res.status(400).json({ error: "Invalid downloadMode" });
-
+  try {
+    buffer = await pdf.generatePdf(file, options);
+    console.log("✅ [2] PDF generated successfully");
   } catch (err) {
-    console.error(err);
-    res.status(500).send("Error generating invoice");
+    console.error("❌ PDF generation failed:", err);
+    return res.status(500).send("PDF generation failed");
   }
+
+  /* FILE SAVE */
+  const customerFolder = path.join(UPLOAD_BASE, String(customerId));
+  if (!fs.existsSync(customerFolder)) {
+    fs.mkdirSync(customerFolder, { recursive: true });
+  }
+
+  const fileName = `${invoiceNo}.pdf`;
+  const filePath = path.join(customerFolder, fileName);
+  fs.writeFileSync(filePath, buffer);
+
+  /* DB SAVE */
+  const invoiceRecord = await prisma.invoice.create({
+    data: {
+      customerId: Number(customerId),
+      startDate: start,
+      endDate: end,
+      generated: true,
+      category: "mdr",
+      type: "invoice",
+      mailto: contact?.email ?? null,
+      mailcc: cc.length ? cc : null,
+      terms: 30,
+      paymentStatus: "pending",
+      invoicePath: {
+        fileName,
+        path: `uploads/invoices/${customerId}/${fileName}`,
+      },
+    },
+  });
+
+  const cid = parseInt(customerId);
+  const devicesCount = parseInt(totalDevices);
+
+  let seats = devicesCount;
+
+  if (contractInvoice === true) {
+    // Fetch existing contract
+    const existingContract = await prisma.customerContract.findUnique({
+      where: { customerId: cid },
+      select: { seats: true },
+    });
+
+    console.log("existingContract", existingContract)
+    console.log("existingContract?.seats", existingContract?.seats)
+    console.log("devicesCount", devicesCount)
+    seats = (existingContract?.seats || 0) + devicesCount;
+  }
+
+  console.log("seats", seats)
+
+  const result = await prisma.customerContract.upsert({
+    where: {
+      customerId: cid,
+    },
+    update: {
+      startDate: start,
+      endDate: end,
+      seats: seats, // 👈 updated seats
+    },
+    create: {
+      customerId: cid,
+      startDate: start,
+      endDate: end,
+      serialNumber: "12234567890",
+      installationId: "67890",
+      name: "Insightz Technology",
+      seats: devicesCount, // 👈 only totalDevices for new contract
+    },
+  });
+
+
+
+  console.log("✅ [5] Invoice saved in DB");
+  console.log("🆔 Invoice ID:", invoiceRecord.id);
+
+  /* ---------------- RESPONSE HANDLING ---------------- */
+  console.log("🚦 [6] Handling downloadMode:", downloadMode);
+
+  if (downloadMode === "manual") {
+    console.log("⬇️ [7] Manual download selected");
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename=${fileName}`,
+      "Content-Length": buffer.length,
+    });
+
+    console.log("✅ PDF sent to browser");
+    return res.send(buffer);
+  }
+
+  if (downloadMode === "auto") {
+    console.log("📧 [7] Auto email mode");
+    console.log("📤 Sending email to:", contact?.email);
+    console.log("📄 CC:", cc);
+
+    await sendMail({
+      to: contact?.email,
+      cc,
+      attachment: buffer,
+    });
+
+    console.log("✅ Email sent successfully");
+
+    return res.json({
+      success: true,
+      invoiceId: invoiceRecord.id,
+      message: "Invoice generated & emailed successfully",
+    });
+  }
+
+  if (downloadMode === "forward") {
+    console.log("📨 [7] Forward mode");
+
+    if (!to) {
+      console.warn("⚠️ Missing `to` email");
+      return res.status(400).json({ error: "`to` email required" });
+    }
+
+    console.log("📤 Forwarding email to:", to);
+    console.log("📄 CC:", cc);
+
+    await sendMail({
+      to,
+      cc,
+      attachment: buffer,
+    });
+
+    console.log("✅ Invoice forwarded successfully");
+
+    return res.json({
+      success: true,
+      invoiceId: invoiceRecord.id,
+      message: "Invoice forwarded successfully",
+    });
+  }
+
+  console.warn("❌ [7] Invalid downloadMode:", downloadMode);
+  return res.status(400).json({ error: "Invalid downloadMode" });
+
+} catch (err) {
+  console.error(err);
+  res.status(500).send("Error generating invoice");
+}
 };
 
 

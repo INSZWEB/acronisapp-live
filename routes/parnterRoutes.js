@@ -12,6 +12,7 @@ router.get('/select', parnterController.select);
 router.put('/update/:id',apiMiddleware, commonMiddleware, parnterController.update);
 router.get('/view/:id',apiMiddleware, parnterController.view);
 router.delete('/delete/:id',apiMiddleware, parnterController.delete);
+router.get('/selectsiderbar', parnterController.selectSiderbar);
 
 
 

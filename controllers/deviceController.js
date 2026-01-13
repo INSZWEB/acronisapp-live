@@ -96,7 +96,6 @@ const deviceController = {
             // Base filter (credential table)
             const whereCondition = {
                 AND: [
-                    { partnerTenantId: partnerTenantId },
                     { customerTenantId: customerTenantId },
                 ]
             };

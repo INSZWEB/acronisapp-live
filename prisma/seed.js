@@ -5,8 +5,8 @@ const prisma = new PrismaClient();
 async function main() {
     // Define modules
     const modules = [
-        { moduleName: 'Requests', status: 'Active', allPerimission: false },
-        { moduleName: 'Changes', status: 'Active', allPerimission: false },
+        { moduleName: 'Parnters', status: 'Active', allPerimission: false },
+        { moduleName: 'Customers', status: 'Active', allPerimission: false },
         { moduleName: 'Settings', status: 'Active', allPerimission: true },
     ];
 

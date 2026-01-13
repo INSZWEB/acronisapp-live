@@ -106,6 +106,8 @@ model Partner {
   currentState String   @default("DISABLE") 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  parnter_kitoff ParnterKickoff[] @relation("parnter_kitoff")
 }
 
 model Customer {
@@ -124,6 +126,7 @@ model Customer {
   customer_invoice  Invoice[]  @relation("customer_invoice")
   customer_automailinvoice AutoInvoice[]  @relation("customer_automailinvoice")
   customer_report  Report[]  @relation("customer_report")
+  customer_kitoff CustomerKickoff[]  @relation("customer_kitoff")
 }
 
 model Credential {
@@ -193,21 +196,22 @@ model AlertLog {
 }
 
 model Policy {
-  id                Int       @id @default(autoincrement())
-  policyId          String    // original policy.id from Acronis
-  planType  String?
-  planName  String?
-  agentId              String?
-  enabled           Boolean?
+  id               Int      @id @default(autoincrement())
 
-  customerTenantId  String
+  policyId         String   // original policy.id from Acronis
+  planType         String?
+  planName         String?
+  agentId          String?
+  enabled          Boolean?
 
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  customerTenantId String
 
-  @@unique([customerTenantId, policyId])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
+  @@unique([customerTenantId, policyId, agentId])
 }
+
 
 
 model ParnterContact {
@@ -382,3 +386,34 @@ deletedAt     DateTime?
   updatedAt          DateTime @updatedAt
 
 }
+
+
+model CustomerKickoff {
+  id        Int      @id @default(autoincrement())
+  customerId Int?
+   customers  Customer?  @relation("customer_kitoff", fields: [customerId], references: [id])
+  status    KickoffStatus @default(NEW)
+  docxPath  String?
+  pptPath  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum KickoffStatus {
+  NEW
+  PENDING
+  COMPLETED
+}
+
+model ParnterKickoff {
+  id        Int      @id @default(autoincrement())
+  parnterId Int?
+   parnters  Partner?  @relation("parnter_kitoff", fields: [parnterId], references: [id])
+  status    KickoffStatus @default(NEW)
+  docxPath  String?
+  pptPath  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
