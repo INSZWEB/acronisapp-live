@@ -403,7 +403,7 @@ router.post("/generate", async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    console.log("devices",devices)
+    console.log("devices", devices)
     const policies = await prisma.policy.findMany({
       where: {
         customerTenantId: tenantId, agentId: {
@@ -426,17 +426,17 @@ router.post("/generate", async (req, res) => {
 
     console.log("plan", plan)
     const uniquePlans = dedupePlansByName(plan);
-const planMap = buildPlanMap(plan);
+    const planMap = buildPlanMap(plan);
     const policyRows = buildPolicyRows(uniquePlans, policies);
     const policyChunks = chunkArray(policyRows, 17);
 
-// Build agentId → planName map
-const planMap1 = new Map(
-  plan.map(p => [p.agentId, p.planName])
-);
+    // Build agentId → planName map
+    const planMap1 = new Map(
+      plan.map(p => [p.agentId, p.planName])
+    );
 
-// Build device rows
-const deviceRows = devices.map(d => `
+    // Build device rows
+    const deviceRows = devices.map(d => `
 <tr>
   <td>${d.hostname ?? "-"}</td>
   <td>${d.osFamily === "WINDOWS" ? "🪟 Windows" : d.osFamily ?? "-"}</td>
@@ -449,7 +449,7 @@ const deviceRows = devices.map(d => `
   <td>${new Date(d.registrationDate ?? d.createdAt).toLocaleString()}</td>
 </tr>
 `);
-const deviceChunks = chunkArray(deviceRows, 20); // rows per page
+    const deviceChunks = chunkArray(deviceRows, 20); // rows per page
     /* ---------------- CONTACT ---------------- */
     const contact = await prisma.parnterContact.findFirst({
       where: {
@@ -469,24 +469,25 @@ const deviceChunks = chunkArray(deviceRows, 20); // rows per page
     const alerts = await prisma.alertLog.findMany({
       where: {
         customerTenantId: tenantId,
-       // receivedAt: { gte: start.toISOString(), lte: end.toISOString() },
+        // receivedAt: { gte: start.toISOString(), lte: end.toISOString() },
       },
       select: { alertId: true, rawJson: true },
       orderBy: { id: "desc" },
     });
 
-const alertRows = alerts.map(a => `
+    const alertRows = alerts.map(a => `
 <tr>
   <td>${a.alertId ?? "-"}</td>
   <td>${a.rawJson?.receivedAt
-    ? new Date(a.rawJson.receivedAt).toLocaleString()
-    : "-"
-  }</td>
+        ? new Date(a.rawJson.receivedAt).toLocaleString()
+        : "-"
+      }</td>
   <td class="severity ${a.rawJson?.severity ?? ""}">
     ${a.rawJson?.severity ?? "-"}
   </td>
   <td>${humanize(a.rawJson?.type)}</td>
   <td>${a.rawJson?.category ?? "-"}</td>
+  <td>${a.rawJson?.details?.isMitigated ?? "-"}</td>
   <td>${a.rawJson?.details?.resourceName ?? "-"}</td>
   <td>${a.rawJson?.details?.verdict ?? "-"}</td>
 </tr>
@@ -501,6 +502,7 @@ const alertRows = alerts.map(a => `
       <th>Severity</th>
       <th>Type</th>
       <th>Category</th>
+      <th>Mitigation</th>
       <th>Resource</th>
       <th>Verdict</th>
     </tr>
@@ -511,7 +513,7 @@ const alertRows = alerts.map(a => `
 </table>
 `;
 
-    console.log("alerts",alerts)
+    console.log("alerts", alerts)
     // Utility function
     function humanize(str) {
       if (!str) return "-";
@@ -548,7 +550,7 @@ const alertRows = alerts.map(a => `
 
 
 
-  const alertChunks = chunkArray(alertRows, 9);
+    const alertChunks = chunkArray(alertRows, 6);
 
 
     const formatDate = d =>
@@ -752,7 +754,13 @@ ${alertChunks.map((rows, idx) => `
 
 
     // Generate PDF
-    const browser = await puppeteer.launch({ headless: "new" });
+    const browser = await puppeteer.launch({
+      headless: "new",
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox"
+      ]
+    });
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
 
