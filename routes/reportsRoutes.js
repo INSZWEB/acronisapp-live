@@ -339,7 +339,7 @@ function buildPlanMap(plans) {
 =================================*/
 router.post("/generate", async (req, res) => {
   try {
-    const { customerId, chartImage, summaryImage, range, downloadMode = "manual", to, cc = [], reportType, } = req.body;
+    const { customerId, chartImage,patchImage, summaryImage, range, downloadMode = "manual", to, cc = [], reportType, } = req.body;
     if (!customerId) return res.status(400).json({ error: "customerId required" });
 
     let start, end;
@@ -523,6 +523,7 @@ router.post("/generate", async (req, res) => {
 
     const chartSlices = await sliceImageToPageSlices(chartImage, 80); // crop 80px footer from chart screenshot
     const summarySlices = await sliceImageToPageSlices(summaryImage, 80);
+    const patchSlices = await sliceImageToPageSlices(patchImage, 80);
 
     const records = generateRecords(150, "Device");
     const tableChunks = chunkArray(records, 25); // 25 rows per page
@@ -807,6 +808,12 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
         <a href="#section4">Alert Summary</a>
         <span class="toc-dots"></span>
       </div>
+
+      <div class="toc-item">
+        <span class="toc-number">6</span>
+        <a href="#section5">All device patch details</a>
+        <span class="toc-dots"></span>
+      </div>
     </div>
   </div>
 </div>
@@ -897,7 +904,19 @@ ${alertChunks.map((rows, idx) => `
 </div>
 `).join("")}
 
-
+${patchSlices
+        .map(
+          (s, i) => `
+<div class="page">
+  <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
+  <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
+  <div class="content">
+    ${i === 0 ? `<h1 id="section5">6.All device patch details</h1>` : ""}
+    <div class="block"><img src="${s}" /></div>
+  </div>
+</div>`
+        )
+        .join("")}
 <!-- END PAGE -->
 <div class="page end">${endImg ? `<img src="${endImg}" />` : ""}</div>
 
