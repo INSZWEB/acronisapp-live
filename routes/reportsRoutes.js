@@ -10,6 +10,8 @@ const router = require("./moduleRoutes");
 const app = express();
 app.use(bodyParser.json({ limit: "50mb" }));
 
+const UPLOAD_BASE = path.join(process.cwd(), "uploads", "reports");
+
 /* ===============================
    PAGE & LAYOUT CONFIG (mm -> px)
 =================================*/
@@ -337,7 +339,7 @@ function buildPlanMap(plans) {
 =================================*/
 router.post("/generate", async (req, res) => {
   try {
-    const { customerId, chartImage, deviceImage, summaryImage, range, downloadMode = "manual", to, cc = [], reportType, } = req.body;
+    const { customerId, chartImage, summaryImage, range, downloadMode = "manual", to, cc = [], reportType, } = req.body;
     if (!customerId) return res.status(400).json({ error: "customerId required" });
 
     let start, end;
@@ -477,7 +479,6 @@ router.post("/generate", async (req, res) => {
 
     const alertRows = alerts.map(a => `
 <tr>
-  <td>${a.alertId ?? "-"}</td>
   <td>${a.rawJson?.receivedAt
         ? new Date(a.rawJson.receivedAt).toLocaleString()
         : "-"
@@ -497,7 +498,6 @@ router.post("/generate", async (req, res) => {
 <table class="data-table">
   <thead>
     <tr>
-      <th>Alert ID</th>
       <th>Received At</th>
       <th>Severity</th>
       <th>Type</th>
@@ -522,7 +522,6 @@ router.post("/generate", async (req, res) => {
     }
 
     const chartSlices = await sliceImageToPageSlices(chartImage, 80); // crop 80px footer from chart screenshot
-    const deviceSlices = await sliceImageToPageSlices(deviceImage, 80);
     const summarySlices = await sliceImageToPageSlices(summaryImage, 80);
 
     const records = generateRecords(150, "Device");
@@ -621,31 +620,197 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
 
 #toc { margin:10mm 0; }
 #toc a { display:block; margin-bottom:3mm; font-size:12pt; color:#0645AD; text-decoration:underline; }
+.toc-page {
+  page-break-after: always;
+}
+
+.toc-title {
+  text-align: center;
+  margin-bottom: 40px;
+  font-size: 28px;
+  letter-spacing: 0.5px;
+}
+
+.toc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 30px;
+}
+
+.toc-item {
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+}
+
+.toc-number {
+  width: 30px;
+  font-weight: bold;
+}
+
+.toc-item a {
+  text-decoration: none;
+  color: #111;
+  white-space: nowrap;
+}
+
+.toc-dots {
+  flex: 1;
+  border-bottom: 1px dotted #999;
+  margin: 0 10px;
+  height: 1px;
+}
+
+/* Optional hover (web only) */
+.toc-item a:hover {
+  text-decoration: underline;
+}
+
 .page-break {
   page-break-before: always;
 }
+  .cover {
+  position: relative;
+  width: ${pageWidthMm}mm;
+  height: ${pageHeightMm}mm;
+  page-break-after: always;
+  overflow: hidden;
+}
+
+/* FULL PAGE IMAGE — Puppeteer safe */
+.cover-img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+  z-index: 1;
+}
+
+.title {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  z-index: 2;
+  text-align: center;
+  color: #fff;
+}
+
+.cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+
+/* 3D TEXT EFFECT */
+.title h2,
+.title .sub,
+.title .period {
+  color: #ffffff;
+  text-shadow:
+    1px 1px 0 rgba(0,0,0,0.3),
+    2px 2px 0 rgba(0,0,0,0.25),
+    3px 3px 6px rgba(0,0,0,0.6);
+}
+
+.title h2 {
+  font-size: 44px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.title .sub {
+  font-size: 26px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.title .period {
+  font-size: 18px;
+  font-weight: 500;
+  opacity: 0.95;
+}
+  
 </style>
 </head>
 <body>
 
 <!-- COVER -->
-<div class="page cover">${coverImg ? `<img src="${coverImg}" />` : ""}</div>
+<!-- COVER -->
+<div class="page cover">
+  ${coverImg ? `<img src="${coverImg}" class="cover-img" />` : ""}
+
+  <div class="title">
+    <h2>InsightzMDR SUMMARY REPORT </h2>
+    <div class="sub">${customer.acronisCustomerTenantName ?? ""}</div>
+    <div class="period">Report Period: ${periodLabel}</div>
+  </div>
+</div>
+
 
 <!-- TABLE OF CONTENTS -->
-<div class="page">
-  <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
-  <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
+<div class="page toc-page">
+  <div class="header">
+    ${headerImg ? `<img src="${headerImg}" />` : ""}
+  </div>
+
+  <div class="footer">
+    ${footerImg ? `<img src="${footerImg}" />` : ""}
+  </div>
+
   <div class="content">
-    <h1>Table of Contents</h1>
-    <div id="toc">
-      <a href="#section1">Alert Category</a>
-      <a href="#section1-device">Endpoint Security Assessment Overview</a>
-      <a href="#section2">Active Plan and Policy </a>
-      <a href="#section3">Endpoint List </a>
-      <a href="#section4">Alert Summary</a>
+    <h1 class="toc-title">Table of Contents</h1>
+
+    <div id="toc" class="toc-list">
+      <div class="toc-item">
+        <span class="toc-number">1</span>
+        <a href="#section1">Alert Overview</a>
+        <span class="toc-dots"></span>
+      </div>
+
+      <div class="toc-item">
+        <span class="toc-number">2</span>
+        <a href="#section1-device">Endpoint Security Assessment Overview</a>
+        <span class="toc-dots"></span>
+      </div>
+
+      <div class="toc-item">
+        <span class="toc-number">3</span>
+        <a href="#section2">Endpoint List</a>
+        <span class="toc-dots"></span>
+      </div>
+
+      <div class="toc-item">
+        <span class="toc-number">4</span>
+        <a href="#section3">Active Plan and Policy</a>
+        <span class="toc-dots"></span>
+      </div>
+
+      <div class="toc-item">
+        <span class="toc-number">5</span>
+        <a href="#section4">Alert Summary</a>
+        <span class="toc-dots"></span>
+      </div>
     </div>
   </div>
 </div>
+
 
 <!-- SECTION 1: charts -->
 ${chartSlices
@@ -655,7 +820,7 @@ ${chartSlices
   <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
   <div class="content">
-    ${i === 0 ? `<h1 id="section1">Alert Category</h1>` : ""}
+    ${i === 0 ? `<h1 id="section1">1.Alert Overview</h1>` : ""}
     <div class="block"><img src="${s}" /></div>
   </div>
 </div>`
@@ -671,26 +836,14 @@ ${summarySlices
   <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
   <div class="content">
-    ${i === 0 ? `<h1 id="section1-device">Endpoint Security Assessment Overview</h1>` : ""}
+    ${i === 0 ? `<h1 id="section1-device">2.Endpoint Security Assessment Overview</h1>` : ""}
     <div class="block"><img src="${s}" /></div>
   </div>
 </div>`
         )
         .join("")}
 <div class="page-break"></div>
-${deviceSlices
-        .map(
-          (s, i) => `
-<div class="page">
-  <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
-  <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
-  <div class="content">
-    ${i === 0 ? `<h1 id="section1-device">Endpoint Security Assessment Overview</h1>` : ""}
-    <div class="block"><img src="${s}" /></div>
-  </div>
-</div>`
-        )
-        .join("")}
+
 
 <!-- SECTION 2: Device Inventory -->
 ${deviceChunks.map((rows, idx) => `
@@ -699,7 +852,7 @@ ${deviceChunks.map((rows, idx) => `
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
 
   <div class="content">
-    ${idx === 0 ? `<h1 id="section2">Endpoint List </h1>` : ""}
+    ${idx === 0 ? `<h1 id="section2">3.Endpoint List </h1>` : ""}
 
     <table class="data-table">
       <thead>
@@ -725,7 +878,7 @@ ${policyChunks.map((rows, idx) => `
   <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
   <div class="content">
-    ${idx === 0 ? `<h1 id="section3">Active Plan and Policy</h1>` : ""}
+    ${idx === 0 ? `<h1 id="section3">4.Active Plan and Policy</h1>` : ""}
     ${policyTableHTML(rows)}
   </div>
 </div>
@@ -738,7 +891,7 @@ ${alertChunks.map((rows, idx) => `
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
 
   <div class="content">
-    ${idx === 0 ? `<h1 id="section4">Alert Summary</h1>` : ""}
+    ${idx === 0 ? `<h1 id="section4">5.Alert Summary</h1>` : ""}
     ${alertTableHTML(rows)}
   </div>
 </div>
@@ -753,28 +906,136 @@ ${alertChunks.map((rows, idx) => `
 `;
 
 
-    // Generate PDF
+    // ---------------- GENERATE PDF ----------------
     const browser = await puppeteer.launch({
       headless: "new",
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox"
-      ]
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
 
-    const outPath = path.join("uploads", `final_report_${Date.now()}.pdf`);
-    await page.pdf({
-      path: outPath,
+    const page = await browser.newPage();
+
+    await page.setContent(html, {
+      waitUntil: "domcontentloaded",
+      timeout: 0,
+    });
+
+    // ✅ Wait for all images (important for PDFs)
+    await page.evaluate(async () => {
+      const images = Array.from(document.images);
+      await Promise.all(
+        images.map(img => {
+          if (img.complete) return;
+          return new Promise(resolve => {
+            img.onload = img.onerror = resolve;
+          });
+        })
+      );
+    });
+
+    const finalPdfBuffer = await page.pdf({
       printBackground: true,
       width: `${pageWidthMm}mm`,
       height: `${pageHeightMm}mm`,
-      pageRanges: "1-",
     });
 
     await browser.close();
-    return res.json({ success: true, path: outPath });
+
+
+    /* ---------------- FINAL PDF BUFFER ---------------- */
+    const finalPdf = Buffer.from(finalPdfBuffer);
+
+    /* ---------------- FILE SYSTEM SAVE ---------------- */
+    const customerFolder = path.join(UPLOAD_BASE, String(customerId));
+    if (!fs.existsSync(customerFolder)) {
+      fs.mkdirSync(customerFolder, { recursive: true });
+    }
+
+    const invoiceNo = `INV-${Date.now()}`;
+    const fileName = `${invoiceNo}.pdf`;
+    const filePath = path.join(customerFolder, fileName);
+
+    fs.writeFileSync(filePath, finalPdf);
+
+    /* ---------------- SAVE REPORT TO DB ---------------- */
+    const reportRecord = await prisma.report.create({
+      data: {
+        customerId: Number(customerId),
+        startDate: start,
+        endDate: end,
+        generated: true,
+        category: "mdr",
+        type: downloadMode,
+        mailto: contact?.email ?? null,
+        mailcc: cc?.length ? cc : null,
+        terms: 30,
+        paymentStatus: "pending",
+        invoicePath: {
+          fileName,
+          path: `uploads/reports/${customerId}/${fileName}`,
+        },
+      },
+    });
+
+    /* ---------------- RESPONSE HANDLING ---------------- */
+
+    // 🔹 Manual download
+    if (downloadMode === "manual") {
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${fileName}"`
+      );
+      res.setHeader("Content-Length", finalPdf.length);
+      return res.send(finalPdf);
+    }
+
+    // 🔹 Auto email
+    if (downloadMode === "auto") {
+      await sendMail({
+        to: contact?.email,
+        cc,
+        attachment: finalPdf,
+      });
+
+      return res.json({
+        success: true,
+        reportId: reportRecord.id,
+        message: "Report generated & emailed successfully",
+      });
+    }
+
+    // 🔹 Forward
+    if (downloadMode === "forward") {
+      if (!to) {
+        return res.status(400).json({ error: "`to` email required" });
+      }
+
+      await sendMail({
+        to,
+        cc,
+        attachment: finalPdf,
+      });
+
+      return res.json({
+        success: true,
+        reportId: reportRecord.id,
+        message: "Report forwarded successfully",
+      });
+    }
+
+    // 🔹 Inline preview
+    const stream = new Readable();
+    stream.push(finalPdf);
+    stream.push(null);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${fileName}"`
+    );
+
+    return stream.pipe(res);
+
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "PDF generation failed", details: String(err) });
