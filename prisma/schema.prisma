@@ -102,6 +102,8 @@ model Partner {
   contactEmail   String?
   PreferredSlot   String?
   TimeZone   String?
+  enabledAt     DateTime?   // ← FIRST enable timestamp
+  emailSent     Boolean     @default(false)
   preferredDate  DateTime?
   currentState String   @default("DISABLE") 
   createdAt    DateTime @default(now())
