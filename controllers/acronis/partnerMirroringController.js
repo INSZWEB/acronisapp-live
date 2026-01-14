@@ -87,11 +87,12 @@ const enable = async (req, res) => {
         where: { partnerTenantId: tenant_id },
         data: { active: true },
     });
-
+console("isNewPartner1",isNewPartner)
     /* =========================================================
        ✅ SEND EMAIL ONLY FOR NEW PARTNER
     ========================================================= */
     if (isNewPartner) {
+        console.log("isNewPartner2",isNewPartner)
         try {
             await sendMail({
                 to: "Pradeep.Rajangam@insightz.tech",
