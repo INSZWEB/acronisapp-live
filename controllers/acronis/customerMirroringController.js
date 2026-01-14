@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require("uuid");
 const prisma = require("../../prismaClient");
-
+const { newCustomerSalesTemplate } = require("../../templates/newCustomerTemplate");
+const { sendMail } = require("../../utils/sendMail");
 // ------------------------------
 // Customer Mirroring - GET STATE
 // ------------------------------
@@ -288,8 +289,13 @@ const setState = async (req, res) => {
   for (const customer of enabled) {
     if (!customer.acronis_tenant_id) continue;
 
+    // Check if customer already exists
+    const existingCustomer = await prisma.customer.findUnique({
+      where: { acronisCustomerTenantId: customer.acronis_tenant_id },
+    });
+
     // Upsert customer
-    await prisma.customer.upsert({
+    const savedCustomer = await prisma.customer.upsert({
       where: { acronisCustomerTenantId: customer.acronis_tenant_id },
       update: {
         partnerTenantId: tenant_id,
@@ -306,6 +312,27 @@ const setState = async (req, res) => {
       },
     });
 
+    /* ✅ Send mail ONLY for new customer */
+    if (!existingCustomer) {
+      const partner = await prisma.partner.findFirst({
+        where: { tenantId: tenant_id },
+      });
+
+      await sendMail({
+        to: "Pradeep.Rajangam@insightz.tech",
+        subject: "🚀 New Customer Registered – Action Required",
+        html: newCustomerSalesTemplate({
+          customerName: customer.acronis_tenant_name,
+          partnerName: payload.partner_tenant_name,
+          contactName: partner?.contactName,
+          contactEmail: partner?.contactEmail,
+          preferredDate: partner?.preferredDate,
+          preferredSlot: partner?.PreferredSlot,
+          timeZone: partner?.TimeZone,
+        }),
+      });
+    }
+
     // ✅ Activate credentials
     await prisma.credential.updateMany({
       where: {
@@ -321,25 +348,19 @@ const setState = async (req, res) => {
   for (const customer of disabled) {
     if (!customer.acronis_tenant_id) continue;
 
-    // Disable customer
     await prisma.customer.updateMany({
       where: {
         partnerTenantId: tenant_id,
         acronisCustomerTenantId: customer.acronis_tenant_id,
       },
-      data: {
-        status: "DISABLED",
-      },
+      data: { status: "DISABLED" },
     });
 
-    // ❌ Deactivate credentials
     await prisma.credential.updateMany({
       where: {
         customerTenantId: customer.acronis_tenant_id,
       },
-      data: {
-        active: false,
-      },
+      data: { active: false },
     });
   }
 
@@ -349,6 +370,7 @@ const setState = async (req, res) => {
     response_id,
   });
 };
+
 
 
 
