@@ -1,7 +1,7 @@
 const prisma = require("../../prismaClient");
 const { v4: uuidv4 } = require("uuid");
 const { sendMail } = require("../../utils/sendMail");
-const { newPartnerSalesTemplate } = require("../../templates/newCustomerTemplate");
+const { newPartnerSalesTemplate } = require("../../templates/newPartnerSalesTemplate");
 
 /* ----------------- Helpers ----------------- */
 function parseDDMMYYYY(dateStr) {
