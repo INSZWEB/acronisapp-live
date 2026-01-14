@@ -41,7 +41,7 @@ const enable = async (req, res) => {
   const timeZone = extra?.["Time Zone"] || null;
   const preferredDate = parseDDMMYYYY(extra?.["enter the date"]);
 
-  const existing = await prisma.partner.findUnique({
+  const existing = await prisma.partner.findFirst({
     where: { tenantId: tenant_id },
   });
 
