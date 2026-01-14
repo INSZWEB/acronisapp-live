@@ -87,7 +87,7 @@ const enable = async (req, res) => {
         where: { partnerTenantId: tenant_id },
         data: { active: true },
     });
-console("isNewPartner1",isNewPartner)
+console.log("isNewPartner1",isNewPartner)
     /* =========================================================
        ✅ SEND EMAIL ONLY FOR NEW PARTNER
     ========================================================= */
