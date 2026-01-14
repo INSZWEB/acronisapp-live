@@ -339,7 +339,7 @@ function buildPlanMap(plans) {
 =================================*/
 router.post("/generate", async (req, res) => {
   try {
-    const { customerId, chartImage,patchImage, summaryImage, range, downloadMode = "manual", to, cc = [], reportType, } = req.body;
+    const { customerId, chartImage, summaryD, DImage, patchImage, deviceSummaries = [], range, downloadMode = "manual", to, cc = [], reportType, } = req.body;
     if (!customerId) return res.status(400).json({ error: "customerId required" });
 
     let start, end;
@@ -522,12 +522,14 @@ router.post("/generate", async (req, res) => {
     }
 
     const chartSlices = await sliceImageToPageSlices(chartImage, 80); // crop 80px footer from chart screenshot
-    const summarySlices = await sliceImageToPageSlices(summaryImage, 80);
+
     const patchSlices = await sliceImageToPageSlices(patchImage, 80);
 
     const records = generateRecords(150, "Device");
     const tableChunks = chunkArray(records, 25); // 25 rows per page
     const policyPlanTable = planPolicyTableHTML(plan, policies);
+
+    const devicePages = chunkArray(deviceSummaries, 2);
 
     // Header/footer/cover/end images
     const coverImg = fs.existsSync("uploads/logo/firstpage.png")
@@ -551,6 +553,37 @@ router.post("/generate", async (req, res) => {
 
 
     const alertChunks = chunkArray(alertRows, 6);
+
+const devicePagesHtml = devicePages
+  .map((pageImages, pageIndex) => {
+    const imagesHtml = pageImages
+      .map(
+        (img) =>
+          `<img src="${img.image}" class="img-group" />`
+      )
+      .join("");
+
+    return `
+      <div class="page">
+        <div class="header">
+          ${headerImg ? `<img src="${headerImg}" />` : ""}
+        </div>
+
+        <div class="footer">
+          ${footerImg ? `<img src="${footerImg}" />` : ""}
+        </div>
+
+        <div class="content">
+          <h1 id="section1-device">
+            2.Endpoint Security Assessment Overview
+          </h1>
+
+          ${imagesHtml}
+        </div>
+      </div>
+    `;
+  })
+  .join("");
 
 
     const formatDate = d =>
@@ -747,7 +780,14 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
   font-weight: 500;
   opacity: 0.95;
 }
-  
+
+.img-group {
+  width: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  page-break-inside: avoid;
+}
+
 </style>
 </head>
 <body>
@@ -820,35 +860,22 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
 
 
 <!-- SECTION 1: charts -->
-${chartSlices
-        .map(
-          (s, i) => `
+
 <div class="page">
   <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
   <div class="content">
-    ${i === 0 ? `<h1 id="section1">1.Alert Overview</h1>` : ""}
-    <div class="block"><img src="${s}" /></div>
+    <h1 id="section1">1.Alert Overview</h1>
+    ${chartImage ? `<img src="${chartImage}"  class="img-group"/>` : ""}
+    ${summaryD ? `<img  class="img-group" src="${summaryD}" />` : ""}
+    ${DImage ? `<img class="img-group" src="${DImage}" />` : ""}
   </div>
-</div>`
-        )
-        .join("")}
+</div>
+      
 <div class="page-break"></div>
 
-  
-${summarySlices
-        .map(
-          (s, i) => `
-<div class="page">
-  <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
-  <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
-  <div class="content">
-    ${i === 0 ? `<h1 id="section1-device">2.Endpoint Security Assessment Overview</h1>` : ""}
-    <div class="block"><img src="${s}" /></div>
-  </div>
-</div>`
-        )
-        .join("")}
+   ${devicePagesHtml}
+
 <div class="page-break"></div>
 
 
@@ -904,19 +931,15 @@ ${alertChunks.map((rows, idx) => `
 </div>
 `).join("")}
 
-${patchSlices
-        .map(
-          (s, i) => `
-<div class="page">
+
+         <div class="page">
   <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
   <div class="content">
-    ${i === 0 ? `<h1 id="section5">6.All device patch details</h1>` : ""}
-    <div class="block"><img src="${s}" /></div>
+   <h1 id="section5">6.All device patch details</h1>
+    ${patchImage ? `<img src="${patchImage}"  class="img-group"/>` : ""}
   </div>
-</div>`
-        )
-        .join("")}
+</div>
 <!-- END PAGE -->
 <div class="page end">${endImg ? `<img src="${endImg}" />` : ""}</div>
 
