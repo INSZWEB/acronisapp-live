@@ -2,7 +2,7 @@ const axios = require("axios");
 const prisma = require("../../prismaClient");
 const { v4: uuidv4 } = require("uuid");
 const { sendMail } = require("../../utils/sendMail");
-const { newPartnerSalesTemplate } = require("../../templates/newPartnerSalesTemplate");
+const { newPartnerSalesTemplate } = require("../../templates/newCustomerTemplate");
 
 // -------------------------------------------
 // API Integration Handler
