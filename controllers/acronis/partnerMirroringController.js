@@ -16,115 +16,125 @@ function parseDDMMYYYY(dateStr) {
    PARTNER MIRRORING : ENABLE
 ========================================================= */
 const enable = async (req, res) => {
-    const { request_id, context, payload } = req.body;
-    const extra = req.cyberAppExtra;
-    const response_id = uuidv4();
+  const { request_id, context, payload } = req.body;
+  const extra = req.cyberAppExtra;
+  const response_id = uuidv4();
 
-    const tenant_id = req.body?.tenant_id || context?.tenant_id;
-    if (!tenant_id) {
-        return res.status(400).json({
-            response_id,
-            message: "tenant_id missing in callback context",
-        });
+  const tenant_id = req.body?.tenant_id || context?.tenant_id;
+  if (!tenant_id) {
+    return res.status(400).json({
+      response_id,
+      message: "tenant_id missing in callback context",
+    });
+  }
+
+  const tenantName =
+    payload?.acronis_tenant_name ||
+    payload?.tenant_name ||
+    context?.acronis_tenant_name ||
+    context?.tenant_name ||
+    null;
+
+  const contactName = extra?.["Enter the name"] || null;
+  const contactEmail = extra?.["Enter the email"] || null;
+  const preferredSlot = extra?.["Time slot"] || null;
+  const timeZone = extra?.["Time Zone"] || null;
+  const preferredDate = parseDDMMYYYY(extra?.["enter the date"]);
+
+  const existing = await prisma.partner.findUnique({
+    where: { tenantId: tenant_id },
+  });
+
+  let entry;
+  let isFirstEnable = false;
+
+  if (!existing) {
+    // Rare edge case (get_state not called)
+    isFirstEnable = true;
+
+    entry = await prisma.partner.create({
+      data: {
+        tenantId: tenant_id,
+        tenantName,
+        currentState: "ENABLED",
+        enabledAt: new Date(),
+        emailSent: false,
+        contactName,
+        contactEmail,
+        PreferredSlot: preferredSlot,
+        TimeZone: timeZone,
+        preferredDate,
+      },
+    });
+  } else {
+    // ✅ THIS IS THE REAL CHECK
+    if (!existing.enabledAt) {
+      isFirstEnable = true;
     }
 
-    const tenantName =
-        payload?.acronis_tenant_name ||
-        payload?.tenant_name ||
-        context?.acronis_tenant_name ||
-        context?.tenant_name ||
-        null;
-
-    const contactName = extra?.["Enter the name"] || null;
-    const contactEmail = extra?.["Enter the email"] || null;
-    const preferredSlot = extra?.["Time slot"] || null;
-    const timeZone = extra?.["Time Zone"] || null;
-    const preferredDate = parseDDMMYYYY(extra?.["enter the date"]);
-
-    const existing = await prisma.partner.findFirst({
-        where: { tenantId: tenant_id },
+    entry = await prisma.partner.update({
+      where: { id: existing.id },
+      data: {
+        tenantName,
+        currentState: "ENABLED",
+        enabledAt: existing.enabledAt ?? new Date(),
+        contactName,
+        contactEmail,
+        PreferredSlot: preferredSlot,
+        TimeZone: timeZone,
+        preferredDate,
+      },
     });
+  }
 
-    let entry;
-    let isNewPartner = false;
+  // ✅ Enable credentials
+  await prisma.parnterCredential.updateMany({
+    where: { partnerTenantId: tenant_id },
+    data: { active: true },
+  });
 
-    if (!existing) {
-        isNewPartner = true;
+  /* =====================================================
+     📧 SEND EMAIL ONLY ON FIRST ENABLE
+  ===================================================== */
+  if (isFirstEnable && !entry.emailSent) {
+    try {
+      await sendMail({
+        to: "Pradeep.Rajangam@insightz.tech",
+        subject: "🤝 New Partner API Integrated",
+        html: newPartnerSalesTemplate({
+          partnerTenantId: tenant_id,
+          partnerName: tenantName,
+          contactName,
+          contactEmail,
+          preferredDate,
+          preferredSlot,
+          timeZone,
+          integrationDate: new Date().toISOString(),
+        }),
+      });
 
-        entry = await prisma.partner.create({
-            data: {
-                tenantId: tenant_id,
-                tenantName,
-                requestId: request_id,
-                responseId: response_id,
-                currentState: "ENABLED",
-                contactName,
-                contactEmail,
-                PreferredSlot: preferredSlot,
-                TimeZone: timeZone,
-                preferredDate,
-            },
-        });
-    } else {
-        entry = await prisma.partner.update({
-            where: { id: existing.id },
-            data: {
-                tenantName,
-                requestId: request_id,
-                responseId: response_id,
-                currentState: "ENABLED",
-                contactName,
-                contactEmail,
-                PreferredSlot: preferredSlot,
-                TimeZone: timeZone,
-                preferredDate,
-            },
-        });
+      await prisma.partner.update({
+        where: { id: entry.id },
+        data: { emailSent: true },
+      });
+    } catch (err) {
+      console.error("Partner email failed:", err.message);
+      // ❗ Never block callback
     }
+  }
 
-    // ✅ Enable partner credentials
-    await prisma.parnterCredential.updateMany({
-        where: { partnerTenantId: tenant_id },
-        data: { active: true },
-    });
-console.log("isNewPartner1",isNewPartner)
-    /* =========================================================
-       ✅ SEND EMAIL ONLY FOR NEW PARTNER
-    ========================================================= */
-    if (isNewPartner) {
-        console.log("isNewPartner2",isNewPartner)
-        try {
-            await sendMail({
-                to: "Pradeep.Rajangam@insightz.tech",
-                subject: "🤝 New Partner API Integrated",
-                html: newPartnerSalesTemplate({
-                    partnerTenantId: tenant_id,
-                    partnerName: tenantName,
-                    contactName,
-                    contactEmail,
-                    preferredDate,
-                    preferredSlot,
-                    timeZone,
-                    integrationDate: new Date().toISOString(),
-                }),
-            });
-        } catch (err) {
-            console.error("Partner email failed:", err.message);
-            // ❗ Do NOT block API flow
-        }
-    }
-
-    return res.json({
-        type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.enable.ok.v1.0",
-        request_id,
-        response_id,
-        payload: {
-            state: "ENABLED",
-            vendor_tenant_id: String(entry.id),
-            acronis_tenant_id: entry.tenantId,
-        },
-    });
+  return res.json({
+    type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.enable.ok.v1.0",
+    request_id,
+    response_id,
+    payload: {
+      state: "ENABLED",
+      vendor_tenant_id: String(entry.id),
+      acronis_tenant_id: entry.tenantId,
+    },
+  });
 };
+
 
 
 /* =========================================================
