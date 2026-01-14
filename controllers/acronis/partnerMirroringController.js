@@ -1,5 +1,7 @@
 const prisma = require("../../prismaClient");
 const { v4: uuidv4 } = require("uuid");
+const { sendMail } = require("../../utils/sendMail");
+const { newPartnerSalesTemplate } = require("../../templates/newCustomerTemplate");
 
 /* ----------------- Helpers ----------------- */
 function parseDDMMYYYY(dateStr) {
@@ -33,7 +35,6 @@ const enable = async (req, res) => {
         context?.tenant_name ||
         null;
 
-    // Extra fields
     const contactName = extra?.["Enter the name"] || null;
     const contactEmail = extra?.["Enter the email"] || null;
     const preferredSlot = extra?.["Time slot"] || null;
@@ -45,8 +46,11 @@ const enable = async (req, res) => {
     });
 
     let entry;
+    let isNewPartner = false;
 
     if (!existing) {
+        isNewPartner = true;
+
         entry = await prisma.partner.create({
             data: {
                 tenantId: tenant_id,
@@ -84,6 +88,31 @@ const enable = async (req, res) => {
         data: { active: true },
     });
 
+    /* =========================================================
+       ✅ SEND EMAIL ONLY FOR NEW PARTNER
+    ========================================================= */
+    if (isNewPartner) {
+        try {
+            await sendMail({
+                to: "Pradeep.Rajangam@insightz.tech",
+                subject: "🤝 New Partner API Integrated",
+                html: newPartnerSalesTemplate({
+                    partnerTenantId: tenant_id,
+                    partnerName: tenantName,
+                    contactName,
+                    contactEmail,
+                    preferredDate,
+                    preferredSlot,
+                    timeZone,
+                    integrationDate: new Date().toISOString(),
+                }),
+            });
+        } catch (err) {
+            console.error("Partner email failed:", err.message);
+            // ❗ Do NOT block API flow
+        }
+    }
+
     return res.json({
         type: "cti.a.p.acgw.response.v1.1~a.p.partner.mirroring.enable.ok.v1.0",
         request_id,
@@ -95,6 +124,7 @@ const enable = async (req, res) => {
         },
     });
 };
+
 
 /* =========================================================
    PARTNER MIRRORING : GET STATE
