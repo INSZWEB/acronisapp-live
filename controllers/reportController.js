@@ -202,7 +202,7 @@ const generateCustomerReport = async (req, res) => {
         customerTenantId: tenantId,
         receivedAt: { gte: start.toISOString(), lte: end.toISOString() },
       },
-      select: { alertId: true, rawJson: true },
+      select: { alertId: true,extraId:true, rawJson: true },
       orderBy: { id: "desc" },
     });
 
@@ -216,6 +216,7 @@ const generateCustomerReport = async (req, res) => {
 
     const alertRows = alerts.map(a => `
 <tr>
+<td>${a.extraId ??"-"}</td>
   <td>${a.rawJson?.receivedAt ? new Date(a.rawJson.receivedAt).toLocaleString() : "-"}</td>
   <td>${a.rawJson?.severity ?? "-"}</td>
 <td>${humanize(a.rawJson?.type)}</td>
@@ -465,7 +466,7 @@ ${deviceImage ? `<img src="${deviceImage}" />` : ""}
 <h3>Alert Details</h3>
 <table>
 <thead>
-<tr><th>Received</th><th>Severity</th><th>Type</th><th>Category</th><th>Resource</th><th>Verdict</th></tr>
+<tr><th>Alert ID</th><th>Received</th><th>Severity</th><th>Type</th><th>Category</th><th>Resource</th><th>Verdict</th></tr>
 </thead>
 <tbody>${alertRows}</tbody>
 </table>

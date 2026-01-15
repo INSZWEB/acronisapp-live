@@ -7,55 +7,61 @@ exports.getStatus = async (req, res) => {
   const { customerId } = req.params;
 
   let kickoff = await prisma.customerKickoff.findFirst({
-    where: { customerId:parseInt(customerId) }
+    where: { customerId: parseInt(customerId) }
   });
 
   if (!kickoff) {
     kickoff = await prisma.customerKickoff.create({
-      data: { customerId:parseInt(customerId) }
+      data: { customerId: parseInt(customerId) }
     });
   }
 
   res.json(kickoff);
 };
 
-// exports.sendMail = async (req, res) => {
-//   const { customerId } = req.body;
-
-//   const kickoff = await prisma.customerKickoff.updateMany({
-//     where: { customerId:parseInt(customerId) },
-//     data: { status: "PENDING" }
-//   });
-
-//   // 👉 Here you can integrate Nodemailer / SES later
-//   res.json({ message: "Kickoff mail sent", status: "PENDING" });
-// };
 
 exports.sendMail = async (req, res) => {
   try {
     const { customerId } = req.body;
 
-    // 1️⃣ Update kickoff status
+    const parsedCustomerId = parseInt(customerId);
+
+    // 1️⃣ Fetch customer details
+    const customer = await prisma.customer.findUnique({
+      where: { id: parsedCustomerId },
+      select: {
+        acronisCustomerTenantName: true,
+      },
+    });
+
+    if (!customer) {
+      return res.status(404).json({ message: "Customer not found" });
+    }
+
+    const customerName = customer.acronisCustomerTenantName || "Customer";
+    const currentYear = new Date().getFullYear().toString();
+
+    // 2️⃣ Update kickoff status
     await prisma.customerKickoff.updateMany({
-      where: { customerId: parseInt(customerId) },
+      where: { customerId: parsedCustomerId },
       data: { status: "PENDING" },
     });
 
-    // 2️⃣ Generate DOCX
+    // 3️⃣ Generate DOCX
     const docxFile = await generateDocx({
-      customerId,
-      year: "2026",
+      customerId: parsedCustomerId,
+      year: currentYear,
     });
 
-    // 3️⃣ Generate PPT
+    // 4️⃣ Generate PPT (use acronisCustomerTenantName)
     const pptFile = await generatePpt({
-      customerId,
-      name: "ICS Asia",
+      customerId: parsedCustomerId,
+      name: customerName,
     });
 
-    // 4️⃣ (Optional) Store file paths in DB
+    // 5️⃣ Store file paths
     await prisma.customerKickoff.updateMany({
-      where: { customerId: parseInt(customerId) },
+      where: { customerId: parsedCustomerId },
       data: {
         docxPath: docxFile.relativePath,
         pptPath: pptFile.relativePath,
@@ -79,16 +85,8 @@ exports.sendMail = async (req, res) => {
   }
 };
 
-// exports.completeKickoff = async (req, res) => {
-//   const { customerId } = req.body;
 
-//   await prisma.customerKickoff.updateMany({
-//     where: { customerId:parseInt(customerId) },
-//     data: { status: "COMPLETED" }
-//   });
 
-//   res.json({ message: "Kickoff completed", status: "COMPLETED" });
-// };
 exports.completeKickoff = async (req, res) => {
   try {
     const { customerId } = req.body;

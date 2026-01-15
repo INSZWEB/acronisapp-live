@@ -159,6 +159,7 @@ model Settings {
   customerLogInterval    Int     @default(5)
   customerDeviceInterval Int     @default(12)
   customerPolicyInterval Int     @default(2)
+  extraIdGenerate       Int  @default(1)
   mailcc               Json?
   createdAt         DateTime @default(now())
   updatedAt              DateTime @updatedAt
@@ -187,6 +188,7 @@ model Device {
 model AlertLog {
   id               Int      @id @default(autoincrement())
   alertId          String   // Acronis alert ID
+  extraId          String?
   partnerTenantId  String
   customerName  String
   customerTenantId String

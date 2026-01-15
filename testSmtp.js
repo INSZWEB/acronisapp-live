@@ -1,6 +1,6 @@
 const nodemailer = require("nodemailer");
 const dotenv = require("dotenv");
-
+const { testSMTP } = require("./test_secret");
 dotenv.config(); // Load .env file
 
 async function testSMTP() {

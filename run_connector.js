@@ -16,17 +16,20 @@ const LOCAL_UPLOADS = path.join(__dirname, "uploads");
 // --------------------------------------------
 async function getFetchInterval() {
     try {
-        const settings = await prisma.settings.findUnique({
-            where: { id: 1 },
+        const settings = await prisma.settings.findFirst({
+            orderBy: { id: "desc" } // always latest row
         });
 
-        // If DB has no settings or value is null → default 5 minutes
         return settings?.customerLogInterval ?? 5;
     } catch (err) {
-        console.error("Error loading settings, defaulting to 5 minutes:", err.message);
+        console.error(
+            "Error loading settings, defaulting to 5 minutes:",
+            err.message
+        );
         return 5;
     }
 }
+
 
 // --------------------------------------------
 // 1. LOAD CREDENTIALS FROM DATABASE
@@ -167,18 +170,71 @@ async function isAlertAlreadySaved(alertId) {
     return !!row;
 }
 
+async function getAndIncrementExtraIdCounter() {
+    return await prisma.$transaction(async (tx) => {
+        const settings = await tx.settings.findFirst({
+            orderBy: { id: "desc" },
+            select: { id: true, extraIdGenerate: true }
+        });
+
+        if (!settings) {
+            throw new Error("Settings table is empty");
+        }
+
+        const currentValue = settings.extraIdGenerate ?? 1;
+
+        await tx.settings.update({
+            where: { id: settings.id },
+            data: {
+                extraIdGenerate: currentValue + 1
+            }
+        });
+
+        return currentValue;
+    });
+}
+
+
+function generateExtraId(customerName, counter) {
+    const prefix = "ALT";
+
+    const customerCode = customerName
+        .replace(/\s+/g, "")
+        .substring(0, 4)
+        .toUpperCase()
+        .padEnd(4, "X"); // ensure 4 chars
+
+    const numberPart = String(counter).padStart(8, "0");
+
+    return `${prefix}${customerCode}${numberPart}`;
+}
+
+
 async function saveAlertToDB(alert, creds) {
+    const customerName = alert.details?.customerName || "Unknown";
+
+    // 1️⃣ Get global counter & increment settings
+    const counter = await getAndIncrementExtraIdCounter();
+
+    // 2️⃣ Generate extraId (15 chars)
+    const extraId = generateExtraId(customerName, counter);
+
+    // 3️⃣ Save alert
     await prisma.alertLog.create({
         data: {
             alertId: alert.id,
-            customerName: alert.details?.customerName || "UnknownCustomer",
+            extraId,
+            customerName,
             partnerTenantId: creds.partnerTenantId,
             customerTenantId: creds.customerTenantId,
-            receivedAt:alert.receivedAt,
+            receivedAt: alert.receivedAt,
             rawJson: alert
         }
     });
+
+    console.log(`🆔 ExtraId created: ${extraId}`);
 }
+
 
 // --------------------------------------------
 // 7. MAIN PROCESS LOGIC

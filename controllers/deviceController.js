@@ -273,19 +273,19 @@ const deviceController = {
             // 1️⃣ Get partnerTenantId from customer table
             const customer = await prisma.customer.findUnique({
                 where: { id: parseInt(parentId) },
-                select: { partnerTenantId: true }
+                select: { acronisCustomerTenantId: true }
             });
 
             if (!customer) {
                 return res.status(STATUS_CODES.NOT_FOUND).json({ error: ERROR_MESSAGES.USER_NOT_FOUND });
             }
 
-            const partnerTenantId = customer.partnerTenantId;
+            const customerTenantId = customer.acronisCustomerTenantId;
 
             // 2️⃣ Count enabled = true
             const enabledCount = await prisma.device.count({
                 where: {
-                    partnerTenantId,
+                    customerTenantId,
                     enabled: true
                 }
             });
@@ -293,7 +293,7 @@ const deviceController = {
             // 3️⃣ Count enabled = false
             const disabledCount = await prisma.device.count({
                 where: {
-                    partnerTenantId,
+                    customerTenantId,
                     enabled: false
                 }
             });

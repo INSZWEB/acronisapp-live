@@ -471,14 +471,15 @@ router.post("/generate", async (req, res) => {
     const alerts = await prisma.alertLog.findMany({
       where: {
         customerTenantId: tenantId,
-        // receivedAt: { gte: start.toISOString(), lte: end.toISOString() },
+        receivedAt: { gte: start.toISOString(), lte: end.toISOString() },
       },
-      select: { alertId: true, rawJson: true },
+      select: { alertId: true,extraId:true, rawJson: true },
       orderBy: { id: "desc" },
     });
 
     const alertRows = alerts.map(a => `
 <tr>
+<td>${a.extraId ??"-"}</td>
   <td>${a.rawJson?.receivedAt
         ? new Date(a.rawJson.receivedAt).toLocaleString()
         : "-"
@@ -498,6 +499,7 @@ router.post("/generate", async (req, res) => {
 <table class="data-table">
   <thead>
     <tr>
+    <th>Alert ID</th>
       <th>Received At</th>
       <th>Severity</th>
       <th>Type</th>

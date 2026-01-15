@@ -12,8 +12,19 @@ const policyCache = new Map();
    SETTINGS
 -------------------------------- */
 async function getIntervalHours() {
-  const settings = await prisma.settings.findUnique({ where: { id: 1 } });
-  return settings?.customerPolicyInterval ?? 2;
+  try {
+    const settings = await prisma.settings.findFirst({
+      orderBy: { id: "desc" } // always latest row
+    });
+
+    return settings?.customerPolicyInterval ?? 2;
+  } catch (err) {
+    console.error(
+      "Error loading customerPolicyInterval, defaulting to 2 hours:",
+      err.message
+    );
+    return 2;
+  }
 }
 
 /* --------------------------------
@@ -264,20 +275,32 @@ async function processDevices(devices, planApps, policies, token, cred) {
 -------------------------------- */
 async function processAllCredentials() {
   const credentials = await getCredentials();
-  if (!credentials.length) return;
 
   for (const cred of credentials) {
     console.log(`\n===== CUSTOMER ${cred.customerTenantId} =====`);
 
     const token = await getToken(cred);
-
     const devices = await fetchDevices(token, cred);
     const planApps = await fetchPlanApplications(token, cred);
     const policies = await fetchPolicies(token, cred);
 
+    // ✅ DELETE ONCE PER CUSTOMER
+    console.log("DELETE tenantId:", cred.customerTenantId);
+
+    await prisma.device.deleteMany({
+      where: { customerTenantId: cred.customerTenantId }
+    });
+    await prisma.plan.deleteMany({
+      where: { customerTenantId: cred.customerTenantId }
+    });
+    await prisma.policy.deleteMany({
+      where: { customerTenantId: cred.customerTenantId }
+    });
+
     await processDevices(devices, planApps, policies, token, cred);
   }
 }
+
 
 /* --------------------------------
    SCHEDULER

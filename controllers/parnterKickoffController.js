@@ -36,31 +36,46 @@ exports.getStatus = async (req, res) => {
 exports.sendMail = async (req, res) => {
   try {
     const { parnterId } = req.body;
+    const parsedPartnerId = parseInt(parnterId);
 
+    console.log("parnterId", parsedPartnerId);
 
-    console.log("parnterId",parnterId);
+    // 1️⃣ Fetch partner details
+    const partner = await prisma.partner.findUnique({
+      where: { id: parsedPartnerId },
+      select: {
+        tenantName: true, // Get the partner name
+      },
+    });
 
-    // 1️⃣ Update kickoff status
+    if (!partner) {
+      return res.status(404).json({ message: "Partner not found" });
+    }
+
+    const partnerName = partner.tenantName || "Partner"; // fallback name
+    const currentYear = new Date().getFullYear().toString();
+
+    // 2️⃣ Update kickoff status
     await prisma.parnterKickoff.updateMany({
-      where: { parnterId: parseInt(parnterId) },
+      where: { parnterId: parsedPartnerId },
       data: { status: "PENDING" },
     });
 
-    // 2️⃣ Generate DOCX
+    // 3️⃣ Generate DOCX
     const docxFile = await generateDocx({
-      parnterId,
-      year: "2026",
+      parnterId: parsedPartnerId,
+      year: currentYear, // dynamic year
     });
 
-    // 3️⃣ Generate PPT
+    // 4️⃣ Generate PPT
     const pptFile = await generatePpt({
-      parnterId,
-      name: "ICS Asia",
+      parnterId: parsedPartnerId,
+      name: partnerName, // dynamic partner name
     });
 
-    // 4️⃣ (Optional) Store file paths in DB
+    // 5️⃣ Store file paths in DB
     await prisma.parnterKickoff.updateMany({
-      where: { parnterId: parseInt(parnterId) },
+      where: { parnterId: parsedPartnerId },
       data: {
         docxPath: docxFile.relativePath,
         pptPath: pptFile.relativePath,
@@ -83,6 +98,7 @@ exports.sendMail = async (req, res) => {
     });
   }
 };
+
 
 // exports.completeKickoff = async (req, res) => {
 //   const { parnterId } = req.body;

@@ -115,6 +115,7 @@ const alertsController = {
                     select: {
                         id: true,
                         alertId: true,
+                        extraId:true,
                         partnerTenantId: true,
                         customerName: true,
                         customerTenantId: true,
@@ -132,7 +133,7 @@ const alertsController = {
 
             const data = result.map(item => ({
                 id: item.id,
-                alertId: item.alertId,
+                alertId: item.extraId,
                 customerName: item.customerName,
                 loggedAt: item.loggedAt,
                 rawJson:item.rawJson,
@@ -291,18 +292,18 @@ const alertsController = {
             // 1️⃣ Get partnerTenantId from customer table
             const customer = await prisma.customer.findUnique({
                 where: { id: parseInt(parentId) },
-                select: { partnerTenantId: true },
+                select: { acronisCustomerTenantId: true },
             });
 
             if (!customer) {
                 return res.status(STATUS_CODES.NOT_FOUND).json({ error: ERROR_MESSAGES.USER_NOT_FOUND });
             }
 
-            const partnerTenantId = customer.partnerTenantId;
+            const customerTenantId = customer.acronisCustomerTenantId;
 
             // 2️⃣ Fetch all alert logs for this partnerTenantId
             const logs = await prisma.alertLog.findMany({
-                where: { partnerTenantId },
+                where: { customerTenantId:customerTenantId },
                 select: { rawJson: true },
             });
 

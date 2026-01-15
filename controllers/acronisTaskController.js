@@ -128,6 +128,12 @@ exports.task = async (req, res) => {
       });
     }
 
+    const device = await prisma.device.findMany({
+      where: { customerTenantId: customer?.acronisCustomerTenantId },
+      select: { agentId: true },
+    });
+
+    console.log("device", device)
     /* ---------- Credentials ---------- */
     const credentials = await prisma.credential.findMany({
       where: {
@@ -157,6 +163,9 @@ exports.task = async (req, res) => {
         resources.map((r) => [r.name, r.id])
       );
 
+      // Convert device list to a Set for faster lookup
+      const deviceAgentIds = new Set(device.map(d => d.agentId));
+
       for (const agent of agents) {
         const resourceId = resourceMap[agent.hostname];
         if (!resourceId) continue;
@@ -171,16 +180,26 @@ exports.task = async (req, res) => {
 
         if (!tasks.length) continue;
 
+        // Filter tasks to only include those executed by devices in our list
+        const filteredTasks = tasks.filter(task =>
+          task.executor && deviceAgentIds.has(task.executor.id)
+        );
+
+        if (!filteredTasks.length) continue; // skip if no tasks match
+
+        //console.log("filteredTasks", filteredTasks);
+
         reports.push(
           buildMonthlyReport(
             agent.hostname,
             agent.id,
             resourceId,
-            tasks,
+            filteredTasks,
             month
           )
         );
       }
+
     }
 
     return res.status(200).json({

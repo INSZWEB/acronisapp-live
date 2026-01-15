@@ -153,6 +153,66 @@ const contractController = {
                 .json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
         }
     },
+    getpolicy: async (req, res) => {
+        try {
+            const { id } = req.query;
+
+            if (isNaN(Number(id))) {
+                return res
+                    .status(STATUS_CODES.BAD_REQUEST)
+                    .json({ error: ERROR_MESSAGES.BAD_REQUEST });
+            }
+
+            /* ---------- Get Customer ---------- */
+            const customer = await prisma.customer.findUnique({
+                where: { id: Number(id) },
+                select: { acronisCustomerTenantId: true },
+            });
+
+            if (!customer) {
+                return res
+                    .status(STATUS_CODES.NOT_FOUND)
+                    .json({ error: ERROR_MESSAGES.USER_NOT_FOUND });
+            }
+
+            /* ---------- Get Enabled Policies ---------- */
+            const policies = await prisma.policy.findMany({
+                where: {
+                    customerTenantId: customer.acronisCustomerTenantId,
+                    enabled: true,
+                },
+                select: {
+                    planName: true,
+                    enabled: true,
+                },
+                orderBy: {
+                    createdAt: "desc",
+                },
+            });
+
+            /* ---------- Remove duplicate planName ---------- */
+            const uniquePoliciesMap = new Map();
+
+            for (const policy of policies) {
+                if (policy.planName && !uniquePoliciesMap.has(policy.planName)) {
+                    uniquePoliciesMap.set(policy.planName, policy);
+                }
+            }
+
+            const uniquePolicies = Array.from(uniquePoliciesMap.values());
+
+            return res.status(STATUS_CODES.OK).json({
+                success: true,
+                data: uniquePolicies,
+            });
+
+        } catch (error) {
+            console.error(error);
+            return res
+                .status(STATUS_CODES.INTERNAL_ERROR)
+                .json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+        }
+    },
 
 
 
