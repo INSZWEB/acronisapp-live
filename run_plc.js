@@ -301,16 +301,29 @@ async function processAllCredentials() {
   }
 }
 
-await processAllCredentials();
 
 /* --------------------------------
    SCHEDULER
 -------------------------------- */
-(async function schedule() {
+/* --------------------------------
+   BOOTSTRAP
+-------------------------------- */
+async function main() {
   const hours = await getIntervalHours();
   console.log(`Device-plan-policy sync every ${hours} hour(s)`);
 
+  // 🔹 RUN FIRST TIME IMMEDIATELY
   await processAllCredentials();
 
-  setInterval(processAllCredentials, hours * 60 * 60 * 1000);
-})();
+  // 🔹 SCHEDULE NEXT RUNS
+  setInterval(
+    processAllCredentials,
+    hours * 60 * 60 * 1000
+  );
+}
+
+// ✅ START SCRIPT
+main().catch(err => {
+  console.error("Fatal error in PLC job:", err);
+  process.exit(1);
+});
