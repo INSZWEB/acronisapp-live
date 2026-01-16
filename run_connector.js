@@ -34,21 +34,31 @@ async function getFetchInterval() {
 // --------------------------------------------
 // 1. LOAD CREDENTIALS FROM DATABASE
 // --------------------------------------------
+
 async function getCredentials() {
-    const cred = await prisma.credential.findFirst({
-        where: { active: true }
-    });
-
-    if (!cred) throw new Error("No active credentials found in DB");
-
-    return {
-        clientId: cred.clientId,
-        clientSecret: cred.clientSecret,
-        dcUrl: cred.datacenterUrl,
-        partnerTenantId: cred.partnerTenantId,
-        customerTenantId: cred.customerTenantId
-    };
+  return prisma.credential.findMany({
+    where: { active: true }
+  });
 }
+
+/* --------------------------------
+   AUTH
+-------------------------------- */
+async function getToken(cred) {
+  const res = await axios.post(
+    `${cred.datacenterUrl}/api/2/idp/token`,
+    new URLSearchParams({ grant_type: "client_credentials" }),
+    {
+      auth: {
+        username: cred.clientId,
+        password: cred.clientSecret,
+      },
+    }
+  );
+
+  return res.data.access_token;
+}
+
 
 // --------------------------------------------
 // 2. GET ACCESS TOKEN
@@ -74,17 +84,16 @@ async function getAccessToken(creds) {
 // --------------------------------------------
 // 3. FETCH ALERTS
 // --------------------------------------------
-async function fetchAlerts(creds, token) {
-    const url = `${creds.dcUrl}/api/alert_manager/v1/alerts`;
+async function fetchAlerts(cred, token) {
+  const url = `${cred.datacenterUrl}/api/alert_manager/v1/alerts`;
 
-    //console.log("token",token)
-    const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` },
-        //params: { severity: "or(warning,critical)" }
-    });
+  const response = await axios.get(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
 
-    return response.data.items || [];
+  return response.data.items || [];
 }
+
 
 // --------------------------------------------
 // 4. CONVERT ALERT TO CEF
@@ -210,72 +219,101 @@ function generateExtraId(customerName, counter) {
 }
 
 
-async function saveAlertToDB(alert, creds) {
-    const customerName = alert.details?.customerName || "Unknown";
+async function saveAlertToDB(alert, tenant) {
+  const customerName = alert.details?.customerName || "Unknown";
 
-    // 1️⃣ Get global counter & increment settings
-    const counter = await getAndIncrementExtraIdCounter();
+  const counter = await getAndIncrementExtraIdCounter();
+  const extraId = generateExtraId(customerName, counter);
 
-    // 2️⃣ Generate extraId (15 chars)
-    const extraId = generateExtraId(customerName, counter);
+  await prisma.alertLog.create({
+    data: {
+      alertId: alert.id,
+      extraId,
+      customerName,
+      partnerTenantId: tenant.partnerTenantId,
+      customerTenantId: tenant.customerTenantId,
+      receivedAt: alert.receivedAt,
+      rawJson: alert,
+    },
+  });
 
-    // 3️⃣ Save alert
-    await prisma.alertLog.create({
-        data: {
-            alertId: alert.id,
-            extraId,
-            customerName,
-            partnerTenantId: creds.partnerTenantId,
-            customerTenantId: creds.customerTenantId,
-            receivedAt: alert.receivedAt,
-            rawJson: alert
-        }
-    });
-
-    console.log(`🆔 ExtraId created: ${extraId}`);
+  console.log(`🆔 ExtraId created: ${extraId}`);
 }
+
 
 
 // --------------------------------------------
 // 7. MAIN PROCESS LOGIC
 // --------------------------------------------
+/* --------------------------------------------
+   MAIN PROCESS
+-------------------------------------------- */
 async function processAlerts() {
-    try {
-        const creds = await getCredentials();
-        const token = await getAccessToken(creds);
-        const alerts = await fetchAlerts(creds, token);
+  try {
+    const credentials = await getCredentials();
 
-        console.log(`Fetched ${alerts.length} alerts.`);
+    if (!credentials.length) {
+      console.log("⚠ No active credentials found.");
+      return;
+    }
+
+    for (const cred of credentials) {
+      console.log(`\n===== CUSTOMER ${cred.customerTenantId} =====`);
+
+      try {
+        // 1️⃣ Token per credential
+        const token = await getToken(cred);
+
+        // 2️⃣ Fetch alerts per tenant
+        const alerts = await fetchAlerts(cred, token);
+
+        console.log(`Fetched ${alerts.length} alerts`);
 
         for (const alert of alerts) {
-            const customerName = alert.details?.customerName || "UnknownCustomer";
-            const safeName = customerName.replace(/\./g, "_").replace(/\s+/g, "_");
-            const filePath = path.join(PREFERRED_ROOT, `${safeName}.log`);
+          const customerName =
+            alert.details?.customerName || "UnknownCustomer";
 
-            // 1. DB duplicate check
-            if (await isAlertAlreadySaved(alert.id)) {
-                console.log(`⚠ Alert ${alert.id} already exists in DB.`);
-                continue;
-            }
+          const safeName = customerName
+            .replace(/\./g, "_")
+            .replace(/\s+/g, "_");
 
-            // 2. File duplicate check
-            if (isAlertInFile(filePath, alert.id)) {
-                console.log(`⚠ Alert ${alert.id} already exists in log file.`);
-                continue;
-            }
+          const filePath = path.join(PREFERRED_ROOT, `${safeName}.log`);
 
-            // 3. Save log file
-            writeAlertToLog(alert, customerName);
+          // DB duplicate check
+          if (await isAlertAlreadySaved(alert.id)) {
+            console.log(`⚠ Alert ${alert.id} already in DB`);
+            continue;
+          }
 
-            // 4. Save to DB
-            await saveAlertToDB(alert, creds);
+          // File duplicate check
+          if (isAlertInFile(filePath, alert.id)) {
+            console.log(`⚠ Alert ${alert.id} already in file`);
+            continue;
+          }
 
-            console.log(`✔ Alert ${alert.id} saved → file & DB`);
+          // Write to log
+          writeAlertToLog(alert, customerName);
+
+          // Save to DB (tenant-aware)
+          await saveAlertToDB(alert, {
+            partnerTenantId: cred.partnerTenantId,
+            customerTenantId: cred.customerTenantId,
+          });
+
+          console.log(`✔ Alert ${alert.id} saved`);
         }
-    } catch (err) {
-        console.error("❌ Error:", err.message);
+      } catch (err) {
+        console.error(
+          `❌ Error processing tenant ${cred.customerTenantId}:`,
+          err.message
+        );
+      }
     }
+  } catch (err) {
+    console.error("❌ Connector error:", err.message);
+  }
 }
+
 
 // --------------------------------------------
 // 8. START LOOP
