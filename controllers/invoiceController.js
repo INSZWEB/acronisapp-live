@@ -217,6 +217,20 @@ const generateCustomerReport = async (req, res) => {
     //console.log("devices",devices)
     const tenantId = customer.acronisCustomerTenantId;
 
+    function formatPolicyType(type) {
+      if (!type) return "-";
+
+      const lastPart = type
+        .trim()
+        .split(".")
+        .pop();
+
+      return lastPart
+        .split("_")
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+    }
+
     /* ---------------- PLANS (FROM PLAN TABLE) ---------------- */
     const plans = await prisma.plan.findMany({
       where: {
@@ -252,28 +266,52 @@ const generateCustomerReport = async (req, res) => {
     //console.log("plans", plans);
     /* ---------------- PLAN + POLICY HTML ---------------- */
     /* ---------------- ACTIVE PLANS & ENABLED POLICIES ---------------- */
-    const planPolicyHTML = plans.length
-      ? plans.map(plan => {
-        const relatedPolicies = policiesByAgent[plan.agentId] || [];
 
-        const planDisplayName = plan.planName || plan.planType || "Unknown Plan";
+    const plansByName = plans.reduce((acc, plan) => {
+      const name = plan.planName || plan.planType || "Unknown Plan";
 
-        const policyHTML = relatedPolicies.length
-          ? relatedPolicies
-            .map(p => {
-              const policyDisplayName = p.planName || p.planType || "Unknown Policy";
-              return `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- ${policyDisplayName}`;
-            })
-            .join("<br/>")
-          : "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- No enabled policies";
+      if (!acc[name]) {
+        acc[name] = [];
+      }
 
-        return `
-        • ${planDisplayName}<br/>
-        ${policyHTML}
-      `;
-      }).join("<br/><br/>")
+      acc[name].push(plan);
+      return acc;
+    }, {});
+
+
+    const planPolicyHTML = Object.keys(plansByName).length
+      ? Object.entries(plansByName)
+        .map(([planDisplayName, planGroup]) => {
+          // collect ALL related policies for this plan group
+          const allPolicies = planGroup.flatMap(
+            plan => policiesByAgent[plan.agentId] || []
+          );
+
+          const policyHTML = allPolicies.length
+            ? [
+              ...new Set(
+                allPolicies.map(p => {
+                  if (p.planName?.startsWith("policy.")) {
+                    return formatPolicyType(p.planName);
+                  }
+                  if (p.planType?.startsWith("policy.")) {
+                    return formatPolicyType(p.planType);
+                  }
+                  return p.planName || p.planType || "Unknown Policy";
+                })
+              ),
+            ]
+              .map(name => `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- ${name}`)
+              .join("<br/>")
+            : "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- No enabled policies";
+
+          return `
+• ${planDisplayName}<br/>
+${policyHTML}
+`;
+        })
+        .join("<br/><br/>")
       : "• No active plans";
-
 
 
     /* ---------------- POLICIES ---------------- */
@@ -353,7 +391,7 @@ ${planPolicyHTML}<br/><br/>
     const ROWS_PER_PAGE = 18;
     const page = Math.max(1, Math.ceil(items.length / ROWS_PER_PAGE));
 
-   const invoiceNo = String(Date.now()).slice(-9);
+    const invoiceNo = String(Date.now()).slice(-9);
 
     const invoiceDate = new Date().toISOString().split("T")[0];
 
