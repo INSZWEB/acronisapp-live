@@ -430,7 +430,7 @@ router.post("/generate", async (req, res) => {
     const uniquePlans = dedupePlansByName(plan);
     const planMap = buildPlanMap(plan);
     const policyRows = buildPolicyRows(uniquePlans, policies);
-    const policyChunks = chunkArray(policyRows, 17);
+    const policyChunks = chunkArray(policyRows, 16);
 
     // Build agentId → planName map
     const planMap1 = new Map(
@@ -489,7 +489,7 @@ router.post("/generate", async (req, res) => {
   </td>
   <td>${humanize(a.rawJson?.type)}</td>
   <td>${a.rawJson?.category ?? "-"}</td>
-  <td>${a.rawJson?.details?.isMitigated ?? "-"}</td>
+
   <td>${a.rawJson?.details?.resourceName ?? "-"}</td>
   <td>${a.rawJson?.details?.verdict ?? "-"}</td>
 </tr>
@@ -504,7 +504,7 @@ router.post("/generate", async (req, res) => {
       <th>Severity</th>
       <th>Type</th>
       <th>Category</th>
-      <th>Mitigation</th>
+    
       <th>Resource</th>
       <th>Verdict</th>
     </tr>
