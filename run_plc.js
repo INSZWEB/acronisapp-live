@@ -301,6 +301,7 @@ async function processAllCredentials() {
   }
 }
 
+await processAllCredentials();
 
 /* --------------------------------
    SCHEDULER
