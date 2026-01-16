@@ -80,7 +80,7 @@ async function fetchAlerts(creds, token) {
     //console.log("token",token)
     const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { severity: "or(warning,critical)" }
+        //params: { severity: "or(warning,critical)" }
     });
 
     return response.data.items || [];
