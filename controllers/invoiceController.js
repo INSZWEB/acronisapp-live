@@ -210,7 +210,7 @@ const generateCustomerReport = async (req, res) => {
       where: whereClause,
     });
 
-    console.log("devices", devices);
+    //console.log("devices", devices);
 
 
 
@@ -353,7 +353,8 @@ ${planPolicyHTML}<br/><br/>
     const ROWS_PER_PAGE = 18;
     const page = Math.max(1, Math.ceil(items.length / ROWS_PER_PAGE));
 
-    const invoiceNo = `INV-${Date.now()}`;
+   const invoiceNo = String(Date.now()).slice(-9);
+
     const invoiceDate = new Date().toISOString().split("T")[0];
 
     const invoiceData = {
@@ -504,7 +505,7 @@ tbody td {
         <!-- RIGHT: Invoice Info (aligned right, text left) -->
         <td width="50%" style="border: none; vertical-align: top; text-align: right;">
             <div style="display:inline-block; text-align:left; font-size:13px;">
-             <strong>   <p style="margin:0;">
+             <strong>   <p style="margin-right:38px;">
                     Invoice No: ${invoiceData.invoiceNo}<br />
                     Invoice Date: ${invoiceData.invoiceDate}<br />
                     Page: ${invoiceData.page}
@@ -522,10 +523,10 @@ tbody td {
         </td>
 
         <!-- RIGHT: Invoice Info (aligned right, text left) -->
-       <td width="50%" style="border: none; vertical-align: top; text-align: right;padding-right:"20px">
+       <td width="50%" style="border: none; vertical-align: top; text-align: right;">
             <div style="display:inline-block; text-align:left; font-size:13px;">
    <strong>   <p style="margin-right:38px;">
-      PO No: 202508148081227<br/>
+      PO No:${invoiceNo}<br/>
       Sales: LSD<br/>
       Payment Terms: 30 Days
     </p></strong>
