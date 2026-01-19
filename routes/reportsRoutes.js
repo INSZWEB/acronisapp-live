@@ -430,7 +430,7 @@ router.post("/generate", async (req, res) => {
     const uniquePlans = dedupePlansByName(plan);
     const planMap = buildPlanMap(plan);
     const policyRows = buildPolicyRows(uniquePlans, policies);
-    const policyChunks = chunkArray(policyRows, 16);
+    const policyChunks = chunkArray(policyRows, 32);
 
     // Build agentId → planName map
     const planMap1 = new Map(
@@ -451,7 +451,7 @@ router.post("/generate", async (req, res) => {
   <td>${new Date(d.registrationDate ?? d.createdAt).toLocaleString()}</td>
 </tr>
 `);
-    const deviceChunks = chunkArray(deviceRows, 20); // rows per page
+    const deviceChunks = chunkArray(deviceRows, 32); // rows per page
     /* ---------------- CONTACT ---------------- */
     const contact = await prisma.parnterContact.findFirst({
       where: {
@@ -477,23 +477,27 @@ router.post("/generate", async (req, res) => {
       orderBy: { id: "desc" },
     });
 
-    const alertRows = alerts.map(a => `
-<tr>
-<td>${a.extraId ??"-"}</td>
-  <td>${a.rawJson?.receivedAt
-        ? new Date(a.rawJson.receivedAt).toLocaleString()
-        : "-"
-      }</td>
-  <td class="severity ${a.rawJson?.severity ?? ""}">
-    ${a.rawJson?.severity ?? "-"}
-  </td>
-  <td>${humanize(a.rawJson?.type)}</td>
-  <td>${a.rawJson?.category ?? "-"}</td>
+const alertRows = alerts
+  .filter(a => a.rawJson?.category !== "EDR")
+  .map(a => `
+    <tr>
+      <td>${a.extraId ?? "-"}</td>
+      <td>
+        ${
+          a.rawJson?.receivedAt
+            ? new Date(a.rawJson.receivedAt).toLocaleString()
+            : "-"
+        }
+      </td>
+      <td class="severity ${a.rawJson?.severity ?? ""}">
+        ${a.rawJson?.severity ?? "-"}
+      </td>
+      <td>${humanize(a.rawJson?.type)}</td>
+      <td>${a.rawJson?.category ?? "-"}</td>
+      <td>${a.rawJson?.details?.resourceName ?? "-"}</td>
+    </tr>
+  `);
 
-  <td>${a.rawJson?.details?.resourceName ?? "-"}</td>
-  <td>${a.rawJson?.details?.verdict ?? "-"}</td>
-</tr>
-`);
 
     const alertTableHTML = (rows) => `
 <table class="data-table">
@@ -504,9 +508,7 @@ router.post("/generate", async (req, res) => {
       <th>Severity</th>
       <th>Type</th>
       <th>Category</th>
-    
       <th>Resource</th>
-      <th>Verdict</th>
     </tr>
   </thead>
   <tbody>
@@ -515,6 +517,50 @@ router.post("/generate", async (req, res) => {
 </table>
 `;
 
+
+const incidentRows = alerts
+  .filter(a => a.rawJson?.category === "EDR")
+  .map(a => `
+    <tr>
+      <td>${a.extraId ?? "-"}</td>
+      <td>
+        ${
+          a.rawJson?.receivedAt
+            ? new Date(a.rawJson.receivedAt).toLocaleString()
+            : "-"
+        }
+      </td>
+      <td class="severity ${a.rawJson?.severity ?? ""}">
+        ${a.rawJson?.severity ?? "-"}
+      </td>
+      <td>${humanize(a.rawJson?.type)}</td>
+      <td>${a.rawJson?.category ?? "-"}</td>
+     <td> ${a.rawJson?.details?.isMitigated ?? "-"}</td>
+      <td>${a.rawJson?.details?.resourceName ?? "-"}</td>
+        <td>${a.rawJson?.details?.verdict ?? "-"}</td>
+    </tr>
+  `);
+
+
+    const incidentTableHTML = (rows) => `
+<table class="data-table">
+  <thead>
+    <tr>
+    <th>Alert ID</th>
+      <th>Received At</th>
+      <th>Severity</th>
+      <th>Type</th>
+      <th>Category</th>
+      <th>Migration</th>
+      <th>Resource</th>
+         <th>Verdict</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${rows.join("")}
+  </tbody>
+</table>
+`;
     console.log("alerts", alerts)
     // Utility function
     function humanize(str) {
@@ -554,7 +600,8 @@ router.post("/generate", async (req, res) => {
 
 
 
-    const alertChunks = chunkArray(alertRows, 6);
+    const alertChunks = chunkArray(alertRows, 32);
+    const incidentChunks = chunkArray(incidentRows, 32);
 
 const devicePagesHtml = devicePages
   .map((pageImages, pageIndex) => {
@@ -789,6 +836,18 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
   object-fit: contain;
   page-break-inside: avoid;
 }
+.data-table {
+  font-size: 10px;        /* reduce overall table font */
+}
+
+.data-table th {
+  font-size: 10.5px;
+}
+
+.data-table td {
+  font-size: 10px;
+  padding: 4px 6px;       /* tighter rows */
+}
 
 </style>
 </head>
@@ -853,7 +912,13 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
 
       <div class="toc-item">
         <span class="toc-number">6</span>
-        <a href="#section5">All device patch details</a>
+        <a href="#section7">Incident Details</a>
+        <span class="toc-dots"></span>
+      </div>
+
+      <div class="toc-item">
+        <span class="toc-number">7</span>
+        <a href="#section6">All device patch details</a>
         <span class="toc-dots"></span>
       </div>
     </div>
@@ -934,11 +999,24 @@ ${alertChunks.map((rows, idx) => `
 `).join("")}
 
 
+${incidentChunks.map((rows, idx) => `
+<div class="page">
+  <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
+  <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
+
+  <div class="content">
+    ${idx === 0 ? `<h1 id="section7">6.Incident Details</h1>` : ""}
+    ${incidentTableHTML(rows)}
+  </div>
+</div>
+`).join("")}
+
+
          <div class="page">
   <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
   <div class="content">
-   <h1 id="section5">6.All device patch details</h1>
+   <h1 id="section5">7.All device patch details</h1>
     ${patchImage ? `<img src="${patchImage}"  class="img-group"/>` : ""}
   </div>
 </div>
