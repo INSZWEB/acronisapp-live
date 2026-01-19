@@ -553,7 +553,7 @@ const incidentRows = alerts
       <th>Category</th>
       <th>Migration</th>
       <th>Resource</th>
-         <th>Verdict</th>
+      <th>Verdict</th>
     </tr>
   </thead>
   <tbody>
@@ -912,13 +912,13 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
 
       <div class="toc-item">
         <span class="toc-number">6</span>
-        <a href="#section7">Incident Details</a>
+        <a href="#section6">Incident Details</a>
         <span class="toc-dots"></span>
       </div>
 
       <div class="toc-item">
         <span class="toc-number">7</span>
-        <a href="#section6">All device patch details</a>
+        <a href="#section7">All device patch details</a>
         <span class="toc-dots"></span>
       </div>
     </div>
@@ -1005,7 +1005,7 @@ ${incidentChunks.map((rows, idx) => `
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
 
   <div class="content">
-    ${idx === 0 ? `<h1 id="section7">6.Incident Details</h1>` : ""}
+    ${idx === 0 ? `<h1 id="section6">6.Incident Details</h1>` : ""}
     ${incidentTableHTML(rows)}
   </div>
 </div>
@@ -1016,7 +1016,7 @@ ${incidentChunks.map((rows, idx) => `
   <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
   <div class="content">
-   <h1 id="section5">7.All device patch details</h1>
+   <h1 id="section7">7.All device patch details</h1>
     ${patchImage ? `<img src="${patchImage}"  class="img-group"/>` : ""}
   </div>
 </div>
