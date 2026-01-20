@@ -442,7 +442,7 @@ router.post("/generate", async (req, res) => {
     const deviceRows = devices.map(d => `
 <tr>
   <td>${d.hostname ?? "-"}</td>
-  <td>${d.osFamily === "WINDOWS" ? "🪟 Windows" : d.osFamily ?? "-"}</td>
+  <td>${d.osFamily === "WINDOWS" ? "Windows" : d.osFamily ?? "-"}</td>
   <td>
     <span class="status ${d.online ? "online" : "offline"}">
       ${d.online ? "Online" : "Offline"}
@@ -478,12 +478,12 @@ router.post("/generate", async (req, res) => {
       orderBy: { id: "desc" },
     });
 
-      const incidents = await prisma.incidentLog.findMany({
+    const incidents = await prisma.incidentLog.findMany({
       where: {
         customerId: tenantId,
         receivedAt: { gte: start.toISOString(), lte: end.toISOString() },
       },
-      select: {severity:true,state:true,host:true, incidentId: true, extraId: true, rawPayload: true,receivedAt:true },
+      select: { severity: true, state: true, host: true, incidentId: true, extraId: true, rawPayload: true, receivedAt: true },
       orderBy: { id: "desc" },
     });
 
@@ -492,16 +492,24 @@ router.post("/generate", async (req, res) => {
       .map(a => `
     <tr>
       <td>${a.extraId ?? "-"}</td>
-      <td>
-        ${a.rawJson?.receivedAt
-          ? new Date(a.rawJson.receivedAt).toLocaleString()
+     <td>
+  ${a.rawJson?.receivedAt
+          ? new Date(a.rawJson.receivedAt).toLocaleString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+          })
           : "-"
         }
-      </td>
+</td>
+
       <td class="severity ${a.rawJson?.severity ?? ""}">
         ${a.rawJson?.severity ?? "-"}
       </td>
-      <td>${humanize(a.rawJson?.type)}</td>
       <td>${a.rawJson?.category ?? "-"}</td>
       <td>${a.rawJson?.details?.resourceName ?? "-"}</td>
     </tr>
@@ -515,7 +523,6 @@ router.post("/generate", async (req, res) => {
     <th>Alert ID</th>
       <th>Received At</th>
       <th>Severity</th>
-      <th>Type</th>
       <th>Category</th>
       <th>Resource</th>
     </tr>
@@ -551,7 +558,7 @@ router.post("/generate", async (req, res) => {
 <table class="data-table">
   <thead>
     <tr>
-    <th>Alert ID</th>
+    <th>Incident ID</th>
       <th>Received At</th>
       <th>Severity</th>
       <th>State</th>

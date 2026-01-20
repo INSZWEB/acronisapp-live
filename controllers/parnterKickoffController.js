@@ -2,15 +2,16 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { generateDocx } = require("../services/generateDocx");
 const { generatePpt } = require("../services/generatePpt");
-
+const fs = require("fs");
+const path = require("path");
 const { createTransporter } = require('../config/mailConfig')
 
 const transporter = createTransporter();
 
-const sendMail = async ({ to, cc, subject, body, attachments }) => {
+const sendMail = async ({ subject, body, attachments }) => {
   const mailOptions = {
     from: process.env.EMAIL_FROM,
-    to:"Pradeep.Rajangam@insightz.tech",
+    to: "Pradeep.Rajangam@insightz.tech",
     subject,
     html: body,
     attachments,
@@ -19,16 +20,24 @@ const sendMail = async ({ to, cc, subject, body, attachments }) => {
   await transporter.sendMail(mailOptions);
 };
 
+const UPLOAD_BASE = path.join(process.cwd(), "uploads");
+function resolveUploadPath(relativePath) {
+  return path.join(
+    process.cwd(),
+    relativePath.replace(/^\/+/, "") // remove leading slash
+  );
+}
+
 exports.getStatus = async (req, res) => {
   const { parnterId } = req.params;
 
   let kickoff = await prisma.parnterKickoff.findFirst({
-    where: { parnterId:parseInt(parnterId) }
+    where: { parnterId: parseInt(parnterId) }
   });
 
   if (!kickoff) {
     kickoff = await prisma.parnterKickoff.create({
-      data: { parnterId:parseInt(parnterId) }
+      data: { parnterId: parseInt(parnterId) }
     });
   }
 
@@ -115,9 +124,9 @@ exports.getStatus = async (req, res) => {
 // };
 
 
-exports.sendMail = async (req, res) => {
+exports.sendMailData = async (req, res) => {
   try {
-    const { parnterId, to, cc } = req.body;
+    const { parnterId, } = req.body;
     const parsedPartnerId = parseInt(parnterId);
 
     const partner = await prisma.partner.findUnique({
@@ -158,6 +167,11 @@ exports.sendMail = async (req, res) => {
       },
     });
 
+
+    console.log("docxFile.relativePath", docxFile.relativePath);
+    console.log("pptFile.relativePath", pptFile.relativePath);
+    console.log("mdrPath", mdrPath);
+
     // 📩 Email Body
     const emailBody = `
       <p>Dear ${partnerName},</p>
@@ -197,26 +211,33 @@ exports.sendMail = async (req, res) => {
         <b>Insightz Technology Team</b>
       </p>
     `;
+    const attachments = [];
+
+    if (pptFile?.relativePath) {
+      attachments.push({
+        filename:"Partner_Kickoff_Slides.pptx",
+        path: resolveUploadPath(pptFile.relativePath),
+      });
+    }
+
+    if (docxFile?.relativePath) {
+      attachments.push({
+        filename: "Partner_NDA.docx",
+        path: resolveUploadPath(docxFile.relativePath),
+      });
+    }
+
+    if (mdrPath) {
+      attachments.push({
+        filename: "Insightz_MDR_Document.pdf",
+        path: resolveUploadPath(mdrPath),
+      });
+    }
 
     await sendMail({
-      to,
-      cc,
       subject: "Welcome to Insightz MDR Partnership",
       body: emailBody,
-      attachments: [
-        {
-          filename: "Partner_Kickoff_Slides.pptx",
-          path: pptFile.relativePath,
-        },
-        {
-          filename: "Partner_NDA.docx",
-          path: docxFile.relativePath,
-        },
-        {
-          filename: "Insightz_MDR_Document.pdf",
-          path: mdrPath,
-        },
-      ],
+      attachments: attachments
     });
 
     res.json({
