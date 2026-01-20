@@ -324,11 +324,6 @@ const setState = async (req, res) => {
         html: newCustomerSalesTemplate({
           customerName: customer.acronis_tenant_name,
           partnerName: payload.partner_tenant_name,
-          contactName: partner?.contactName,
-          contactEmail: partner?.contactEmail,
-          preferredDate: partner?.preferredDate,
-          preferredSlot: partner?.PreferredSlot,
-          timeZone: partner?.TimeZone,
         }),
       });
     }
