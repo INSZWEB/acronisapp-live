@@ -9,6 +9,9 @@ const router = require("./moduleRoutes");
 
 const app = express();
 app.use(bodyParser.json({ limit: "50mb" }));
+const FRONTEND_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL_FRONTEND;
+
+console.log("FRONTEND_BASE_URL",FRONTEND_BASE_URL);
 
 const UPLOAD_BASE = path.join(process.cwd(), "uploads", "reports");
 
@@ -313,7 +316,20 @@ function policyTableHTML(rows) {
       : ""}
         ${!r.isFirst ? "" : ""}
         <td>${r.policyName}</td>
-        <td style="text-align:center;">${r.enabled ? "✅" : "❌"}</td>
+     <td style="text-align:center;">
+  <img
+    src="${r.enabled
+      ? `${FRONTEND_BASE_URL}images/check.jpg`
+      : `${FRONTEND_BASE_URL}images/cross.jpg`
+    }"
+    alt="${r.enabled ? "Enabled" : "Disabled"}"
+    width="16"
+    height="16"
+    style="vertical-align:middle;"
+  />
+</td>
+
+
       </tr>
     `).join("")}
   </tbody>
