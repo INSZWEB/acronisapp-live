@@ -168,10 +168,6 @@ exports.sendMailData = async (req, res) => {
     });
 
 
-    console.log("docxFile.relativePath", docxFile.relativePath);
-    console.log("pptFile.relativePath", pptFile.relativePath);
-    console.log("mdrPath", mdrPath);
-
     // 📩 Email Body
     const emailBody = `
       <p>Dear ${partnerName},</p>
@@ -328,7 +324,7 @@ exports.sendMailold = async (req, res) => {
 
 exports.completeKickoff = async (req, res) => {
   try {
-    const { parnterId } = req.body;
+    const { parnterId,providesApis } = req.body;
 
     if (!req.file) {
       return res.status(400).json({
@@ -343,6 +339,8 @@ exports.completeKickoff = async (req, res) => {
       data: {
         status: "COMPLETED",
         docxPath: docxPath,
+        providesApis: Boolean(providesApis === true || providesApis === "true")
+
       },
     });
 

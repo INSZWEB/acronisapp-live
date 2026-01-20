@@ -423,6 +423,8 @@ model CustomerKickoff {
   status    KickoffStatus @default(NEW)
   docxPath  String?
   pptPath  String?
+   providesApis Boolean @default(false)
+   providesContact Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -441,6 +443,7 @@ model ParnterKickoff {
   docxPath  String?
   pptPath  String?
   mdrPath  String?
+ providesApis Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
