@@ -84,6 +84,7 @@ const ParnterContactController = {
             });
         }
     },
+   
 
     // --------------------------------------------------
     // VIEW SINGLE CONTACT

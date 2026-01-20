@@ -12,7 +12,9 @@ router.get('/select', customerController.select);
 router.get('/selectsiderbar', customerController.selectSiderbar);
 router.put('/update/:id',apiMiddleware, commonMiddleware, customerController.update);
 router.get('/view/:id',apiMiddleware, customerController.view);
+router.get('/acronis/:id',apiMiddleware, customerController.acronis);
 router.delete('/delete/:id',apiMiddleware, customerController.delete);
+router.get('/customer',apiMiddleware, customerController.customerlist);
 
 
 

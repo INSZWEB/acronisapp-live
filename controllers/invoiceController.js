@@ -9,17 +9,17 @@ const prisma = new PrismaClient();
 const { createTransporter } = require('../config/mailConfig')
 
 const transporter = createTransporter();
-const sendMail = async ({ to, cc, attachment }) => {
+const sendMail = async ({ to, cc, subject, body, attachment }) => {
   const mailOptions = {
     from: process.env.EMAIL_FROM,
-    to,                     // primary recipient
-    cc,                     // optional CC
-    subject: "EMAIL_AUTH.SUBJECT",
-    html: `<p>Please find the invoice attached.</p>`,
+    to,               // primary recipients
+    cc,               // optional CC
+    subject,          // dynamic subject
+    html: body,       // email body (HTML)
     attachments: [
       {
         filename: "invoice.pdf",
-        content: attachment, // PDF buffer
+        content: attachment,
         contentType: "application/pdf",
       },
     ],
@@ -27,6 +27,7 @@ const sendMail = async ({ to, cc, attachment }) => {
 
   await transporter.sendMail(mailOptions);
 };
+
 
 const UPLOAD_BASE = path.join(process.cwd(), "uploads", "invoices");
 
@@ -415,6 +416,8 @@ ${planPolicyHTML}<br/><br/>
           .filter(email => email)               // remove empty/undefined
       )
     );
+
+    console.log("emails", emails)
 
     /* ---------------- HTML ---------------- */
     //const html = `YOUR_HTML_TEMPLATE_HERE`; // 👈 keep your existing HTML exactly
@@ -873,21 +876,82 @@ Swift Code: UOVBSGSG<br/>
       console.log("📤 Sending email to:", contact?.email);
       console.log("📄 CC:", cc);
 
-      // Send mail
+
+const emailBody = `
+<p>Hello,</p>
+
+<p>
+This is an automated email from
+<strong>Insightz MDR Invoice AutoScheduler</strong>.
+</p>
+
+<p>
+Please find attached your MDR invoice for the billing period below:
+</p>
+
+<p>
+<strong>📅 Invoice Period</strong><br/>
+From: <strong>${start}</strong><br/>
+To: <strong>${end}</strong>
+</p>
+
+<p>
+This invoice has been generated and sent automatically as per your selected billing schedule.
+</p>
+
+<p>
+If you have any questions or require assistance, please contact our support team.
+</p>
+
+<p>
+Thank you for choosing <strong>Insightz MDR</strong>.
+</p>
+
+<p>
+Best regards,<br/>
+<strong>Insightz MDR Billing Team</strong>
+</p>
+`;
+
+
+      // 1️⃣ Send email
       await sendMail({
-        to: emails.join(","), // or keep as array if your mail function supports it
+        to: emails.join(","),
         cc,
+        subject: "Insightz MDR – Scheduled Invoice",
+        body: emailBody,
         attachment: buffer,
       });
 
+
       console.log("✅ Email sent successfully");
 
+      // 2️⃣ Save / Update AutoInvoice
+      const autoInvoice = await prisma.autoInvoice.upsert({
+        where: {
+          customerId: Number(customerId), // must be UNIQUE (see note below)
+        },
+        update: {
+          automail: true,
+          scheduleTiming: reportType || null,
+        },
+        create: {
+          automail: true,
+          scheduleTiming: reportType || null,
+          customerId: Number(customerId),
+        },
+      });
+
+      console.log("🧾 AutoInvoice saved:", autoInvoice.id);
+
+      // 3️⃣ Response
       return res.json({
         success: true,
         invoiceId: invoiceRecord.id,
         message: "Invoice generated & emailed successfully",
       });
     }
+
 
     if (downloadMode === "forward") {
       console.log("📨 [7] Forward mode");

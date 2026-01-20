@@ -31,6 +31,8 @@ const syncContactRoutes = require("./routes/syncContactRoutes.js");
 const reportsRoutes = require("./routes/reportsRoutes.js");
 const kickoffRoutes = require("./routes/kickoffRoutes");
 const ParnterKickoffRoutes = require("./routes/ParnterKickoffRoutes.js");
+const incidentsRoutes = require("./routes/incidentsRoutes.js");
+const autoInvoiceRoutes= require("./routes/autoInvoiceRoutes.js")
 
 //app.use(express.json());
 app.use(express.json({ limit: "10mb" }));
@@ -111,7 +113,9 @@ app.use("/plan",planRoutes);
 app.use("/synccontact",syncContactRoutes);
 app.use('/g',reportsRoutes)
 app.use("/kickoff", kickoffRoutes);
-app.use("/parnterKickoff",ParnterKickoffRoutes)
+app.use("/parnterKickoff",ParnterKickoffRoutes);
+app.use("/incidents",incidentsRoutes);
+app.use("/autoinvoice",autoInvoiceRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

@@ -249,6 +249,37 @@ model ParnterContact {
   updatedAt         DateTime @updatedAt
 }
 
+model CustomerAcronisContact {
+  id         Int      @id @default(autoincrement())  // Auto-increment primary key
+  apiId             String   @unique
+  apiCreatedAt         DateTime? 
+  apiUpdatedAt         DateTime?
+  email             String?  
+  address1          String?
+  address2          String?
+  country           String?
+  state             String?
+  city              String?
+  zipcode           String?
+  phone             String?
+  firstname         String?
+  lastname          String?
+  title             String?
+  website           String?
+  industry          String?
+  organizationSize  String?
+  emailConfirmed    Boolean?
+  aan               String?
+  fax               String?
+  language          String?
+  types             String?
+  deletedAt         DateTime? 
+  partnerTenantId          String?
+  customerTenantId          String?
+  userId            String?
+   createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
 
 model CustomerContact {
   id         Int      @id @default(autoincrement())  // Auto-increment primary key
@@ -295,7 +326,6 @@ model Plan {
   planType         String
   enabled          Boolean  @default(true)
   agentId          String?
-  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -309,7 +339,6 @@ model Category {
   name      String   @unique
   alias     String?
   disabled  Boolean  @default(false)
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -317,18 +346,14 @@ model Category {
 
 model Resource {
   id                 Int      @id @default(autoincrement())
-
   customerTenantId   String
   acronisTenantId    String
   acronisResourceId  String
   agentId            String   @unique
-
   name               String?
   userDefinedName    String?
   type               String
-
   attributes         Json?
-
   createdAt          DateTime
   updatedAt          DateTime
   lastSyncedAt       DateTime @default(now())
@@ -339,11 +364,9 @@ model Resource {
 
 model Invoice {
   id                 Int      @id @default(autoincrement())
-
   startDate   DateTime
   endDate    DateTime
   generated  Boolean  @default(false)
-
   category               String?
   type               String?
 mailto     String?
@@ -362,10 +385,11 @@ deletedAt     DateTime?
 model AutoInvoice {
   id          Int       @id @default(autoincrement())
   automail    Boolean?
-  type        String?
-  customerId  Int?
+  scheduleTiming String?
+  customerId  Int?   @unique
   customer    Customer? @relation("customer_automailinvoice", fields: [customerId], references: [id])
   createdAt   DateTime  @default(now())
+  lastSentAt  DateTime?
   updatedAt   DateTime  @updatedAt
 }
 
@@ -416,8 +440,24 @@ model ParnterKickoff {
   status    KickoffStatus @default(NEW)
   docxPath  String?
   pptPath  String?
+  mdrPath  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 
+model IncidentLog {
+  id         Int      @id @default(autoincrement())
+  incidentId String   @unique
+  extraId String? @unique
+  customerId String
+  severity   String
+  state      String
+  resourceId String
+  agentId    String
+  host       String
+  receivedAt DateTime        // when we received/logged it
+  rawPayload Json            // full incident details payload
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}

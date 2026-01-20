@@ -161,7 +161,83 @@ const customerController = {
             });
         }
     },
+    customerlist: async (req, res) => {
+        try {
+            const page = parseInt(req.query.page) || ERROR_MESSAGES.DEFAULT_PAGE;
+            const limit = parseInt(req.query.limit) || ERROR_MESSAGES.DEFAULT_LIMIT;
+            const searchKeyword = req.query.searchKeyword || '';
+            const customerId = parseInt(req.query.customerId);
 
+            if (!customerId) {
+                return res.status(STATUS_CODES.BAD_REQUEST).json({
+                    error: "customerId is required"
+                });
+            }
+
+            // 1️⃣ Fetch Partner
+            const partner = await prisma.customer.findUnique({
+                where: { id: customerId },
+                select: { acronisCustomerTenantId: true }
+            });
+
+            if (!partner) {
+                return res.status(STATUS_CODES.NOT_FOUND).json({
+                    error: "Partner not found"
+                });
+            }
+
+            const skip = (page - 1) * limit;
+
+            // 2️⃣ Build WHERE condition
+            const whereCondition = {
+                customerTenantId: partner.acronisCustomerTenantId,
+                deletedAt: null,
+                ...(searchKeyword && {
+                    OR: [
+                        { email: { contains: searchKeyword, mode: "insensitive" } },
+                        { firstname: { contains: searchKeyword, mode: "insensitive" } },
+                        { lastname: { contains: searchKeyword, mode: "insensitive" } },
+                        { phone: { contains: searchKeyword } },
+                    ]
+                })
+            };
+
+            // 3️⃣ Fetch data + count
+            const [totalCount, contacts] = await Promise.all([
+                prisma.customerAcronisContact.count({ where: whereCondition }),
+                prisma.customerAcronisContact.findMany({
+                    where: whereCondition,
+                    skip,
+                    take: limit,
+                    orderBy: { id: 'desc' },
+                    select: {
+                        id: true,
+                        apiId: true,
+                        firstname: true,
+                        lastname: true,
+                        email: true,
+                        types: true
+                    }
+                })
+            ]);
+
+            return res.status(STATUS_CODES.OK).json({
+                data: contacts,
+                pagination: {
+                    totalCount,
+                    totalPages: Math.ceil(totalCount / limit),
+                    currentPage: page,
+                    pageSize: limit
+                }
+            });
+
+        } catch (error) {
+            console.error(error);
+            return res.status(STATUS_CODES.INTERNAL_ERROR).json({
+                error: ERROR_MESSAGES.INTERNAL_ERROR
+            });
+        }
+    },
 
     select: async (req, res) => {
         try {
@@ -332,6 +408,31 @@ const customerController = {
             return res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
         }
     },
+    acronis: async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            if (isNaN(parseInt(id))) {
+                return res.status(STATUS_CODES.BAD_REQUEST).json({ error: ERROR_MESSAGES.BAD_REQUEST });
+            }
+
+            const result = await prisma.customerAcronisContact.findUnique({
+                where: {
+                    id: parseInt(id),
+                },
+
+            });
+
+            if (!result) {
+                return res.status(STATUS_CODES.NOT_FOUND).json({ error: ERROR_MESSAGES.USER_NOT_FOUND });
+            }
+
+            return res.status(STATUS_CODES.OK).json(result);
+        } catch (error) {
+            console.error(error);
+            return res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
+        }
+    },
     update: async (req, res) => {
         try {
             const { id } = req.params;
@@ -411,7 +512,7 @@ const customerController = {
             res.status(STATUS_CODES.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.INTERNAL_ERROR });
         }
     },
-     contractView: async (req, res) => {
+    contractView: async (req, res) => {
         try {
             const { id } = req.query;
 

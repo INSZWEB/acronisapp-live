@@ -64,7 +64,7 @@ exports.updateDeviceInterval = async (req, res) => {
 
     const updated = await prisma.settings.update({
       where: { id: settings.id },
-      data: { customerDeviceInterval },
+      data: { customerPolicyInterval:customerDeviceInterval },
     });
 
     return res.json({
@@ -121,5 +121,35 @@ exports.upsertMailCC = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+
+// -----------------------------
+// Get All Settings
+// -----------------------------
+// -----------------------------
+// Get All Settings
+// -----------------------------
+exports.getAllSettings = async (req, res) => {
+  try {
+    // This utility ensures that if it's the first time calling, 
+    // the row is created with Log: 5 and Device: 12
+    const settings = await ensureSettingsRow();
+
+    return res.json({
+      success: true,
+      data: {
+        customerLogInterval: settings.customerLogInterval,
+        customerDeviceInterval: settings.customerPolicyInterval, // Mapping based on your update logic
+        mailcc:settings.mailcc
+      },
+    });
+  } catch (error) {
+    console.error("Fetch Error:", error);
+    return res.status(500).json({ 
+      success: false, 
+      message: "Failed to fetch settings" 
+    });
   }
 };

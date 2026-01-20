@@ -120,13 +120,14 @@ async function sliceImageToPageSlices(imageSource, bottomCropPx = 0) {
 }
 
 function policyNameFromType(type) {
-  if (!type) return "-";
+  if (!type) return "-"; // Return "-" if type is empty or null
   return type
-    .split(".")
-    .pop()
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, c => c.toUpperCase());
+    .split(".")                    // Split by dots
+    .pop()                         // Take the last segment
+    .replace(/_/g, " ")            // Replace underscores with spaces
+    .replace(/\b\w/g, c => c.toUpperCase()); // Capitalize first letter of each word
 }
+
 function buildPlanPolicyMatrix(plans, policies) {
   return plans.map(plan => {
     const matchedPolicies = policies.filter(
@@ -473,20 +474,28 @@ router.post("/generate", async (req, res) => {
         customerTenantId: tenantId,
         receivedAt: { gte: start.toISOString(), lte: end.toISOString() },
       },
-      select: { alertId: true,extraId:true, rawJson: true },
+      select: { alertId: true, extraId: true, rawJson: true },
       orderBy: { id: "desc" },
     });
 
-const alertRows = alerts
-  .filter(a => a.rawJson?.category !== "EDR")
-  .map(a => `
+      const incidents = await prisma.incidentLog.findMany({
+      where: {
+        customerId: tenantId,
+        receivedAt: { gte: start.toISOString(), lte: end.toISOString() },
+      },
+      select: {severity:true,state:true,host:true, incidentId: true, extraId: true, rawPayload: true,receivedAt:true },
+      orderBy: { id: "desc" },
+    });
+
+    const alertRows = alerts
+      .filter(a => a.rawJson?.category !== "EDR")
+      .map(a => `
     <tr>
       <td>${a.extraId ?? "-"}</td>
       <td>
-        ${
-          a.rawJson?.receivedAt
-            ? new Date(a.rawJson.receivedAt).toLocaleString()
-            : "-"
+        ${a.rawJson?.receivedAt
+          ? new Date(a.rawJson.receivedAt).toLocaleString()
+          : "-"
         }
       </td>
       <td class="severity ${a.rawJson?.severity ?? ""}">
@@ -518,26 +527,22 @@ const alertRows = alerts
 `;
 
 
-const incidentRows = alerts
-  .filter(a => a.rawJson?.category === "EDR")
-  .map(a => `
+    const incidentRows = incidents
+      .map(a => `
     <tr>
       <td>${a.extraId ?? "-"}</td>
       <td>
-        ${
-          a.rawJson?.receivedAt
-            ? new Date(a.rawJson.receivedAt).toLocaleString()
-            : "-"
+        ${a.receivedAt
+          ? new Date(a.receivedAt).toLocaleString()
+          : "-"
         }
       </td>
-      <td class="severity ${a.rawJson?.severity ?? ""}">
-        ${a.rawJson?.severity ?? "-"}
+      <td class="severity">
+        ${a.severity ?? "-"}
       </td>
-      <td>${humanize(a.rawJson?.type)}</td>
-      <td>${a.rawJson?.category ?? "-"}</td>
-     <td> ${a.rawJson?.details?.isMitigated ?? "-"}</td>
-      <td>${a.rawJson?.details?.resourceName ?? "-"}</td>
-        <td>${a.rawJson?.details?.verdict ?? "-"}</td>
+      <td>${a.state ?? "-"}</td>
+     <td> ${a.rawPayload?.mitigation_state ?? "-"}</td>
+        <td>${a.host ?? "-"}</td>
     </tr>
   `);
 
@@ -549,11 +554,9 @@ const incidentRows = alerts
     <th>Alert ID</th>
       <th>Received At</th>
       <th>Severity</th>
-      <th>Type</th>
-      <th>Category</th>
+      <th>State</th>
       <th>Migration</th>
       <th>Resource</th>
-      <th>Verdict</th>
     </tr>
   </thead>
   <tbody>
@@ -565,8 +568,19 @@ const incidentRows = alerts
     // Utility function
     function humanize(str) {
       if (!str) return "-";
-      // Insert space before each uppercase letter except first, e.g. BackupFailed -> Backup Failed
-      return str.replace(/([A-Z])/g, " $1").replace(/^ /, "");
+
+      // Fix common patterns like "U R L" -> "URL" and "P M" -> "PM"
+      str = str.replace(/\b([A-Z])(?:\s+([A-Z]))+\b/g, (match) =>
+        match.replace(/\s+/g, "")
+      );
+
+      // Capitalize first letter of each word
+      str = str
+        .split(" ")
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(" ");
+
+      return str;
     }
 
     const chartSlices = await sliceImageToPageSlices(chartImage, 80); // crop 80px footer from chart screenshot
@@ -603,16 +617,16 @@ const incidentRows = alerts
     const alertChunks = chunkArray(alertRows, 32);
     const incidentChunks = chunkArray(incidentRows, 32);
 
-const devicePagesHtml = devicePages
-  .map((pageImages, pageIndex) => {
-    const imagesHtml = pageImages
-      .map(
-        (img) =>
-          `<img src="${img.image}" class="img-group" />`
-      )
-      .join("");
+    const devicePagesHtml = devicePages
+      .map((pageImages, pageIndex) => {
+        const imagesHtml = pageImages
+          .map(
+            (img) =>
+              `<img src="${img.image}" class="img-group" />`
+          )
+          .join("");
 
-    return `
+        return `
       <div class="page">
         <div class="header">
           ${headerImg ? `<img src="${headerImg}" />` : ""}
@@ -631,8 +645,8 @@ const devicePagesHtml = devicePages
         </div>
       </div>
     `;
-  })
-  .join("");
+      })
+      .join("");
 
 
     const formatDate = d =>
@@ -912,7 +926,7 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
 
       <div class="toc-item">
         <span class="toc-number">6</span>
-        <a href="#section6">Incident Details</a>
+        <a href="#section6">EDR Incident Details</a>
         <span class="toc-dots"></span>
       </div>
 
@@ -1005,7 +1019,7 @@ ${incidentChunks.map((rows, idx) => `
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
 
   <div class="content">
-    ${idx === 0 ? `<h1 id="section6">6.Incident Details</h1>` : ""}
+    ${idx === 0 ? `<h1 id="section6">6. EDR Incident Details</h1>` : ""}
     ${incidentTableHTML(rows)}
   </div>
 </div>
