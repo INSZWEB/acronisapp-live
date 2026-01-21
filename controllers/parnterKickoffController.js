@@ -193,7 +193,7 @@ exports.sendMailData = async (req, res) => {
 
       <p>
         🎥 <b>Customer Self-Onboarding Video:</b><br/>
-        <a href="http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4">
+       <a href="${process.env.NEXT_PUBLIC_BASE_URL_FRONTEND}/Onboarding">
           Watch the onboarding video
         </a>
       </p>
