@@ -8,10 +8,10 @@ const path = require("path");
 
 const transporter = createTransporter();
 
-const sendMail = async ({ subject, body, attachments }) => {
+const sendMail = async ({ to,subject, body, attachments }) => {
   const mailOptions = {
     from: process.env.EMAIL_FROM,
-    to: "Pradeep.Rajangam@insightz.tech",
+    to,
     subject,
     html: body,
     attachments,
@@ -56,8 +56,19 @@ exports.sendMailData = async (req, res) => {
       where: { id: parsedCustomerId },
       select: {
         acronisCustomerTenantName: true,
+        partnerTenantId:true,
       },
     });
+
+    // 1️⃣ Fetch parnter contact
+    const parnter = await prisma.partner.findFirst({
+      where: { tenantId: customer.partnerTenantId },
+      select: {
+        contactEmail: true,
+      },
+    });
+
+    console.log("parnter",parnter)
 
     if (!customer) {
       return res.status(404).json({ message: "Customer not found" });
@@ -143,6 +154,7 @@ const emailBody = `
 
 
     await sendMail({
+      to:parnter.contactEmail,
       subject: "Welcome to Insightz MDR Customer Onboarding",
       body: emailBody,
       attachments: attachments

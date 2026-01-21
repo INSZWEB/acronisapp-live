@@ -319,8 +319,8 @@ const setState = async (req, res) => {
       });
 
       await sendMail({
-        to: "Pradeep.Rajangam@insightz.tech",
-        subject: "🚀 New Customer Registered – Action Required",
+        to: process.env.EMAIL_FROM,
+        subject: "🚀 New Customer Registered for InsightzMDR",
         html: newCustomerSalesTemplate({
           customerName: customer.acronis_tenant_name,
           partnerName: payload.partner_tenant_name,

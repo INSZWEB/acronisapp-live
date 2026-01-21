@@ -99,8 +99,8 @@ const enable = async (req, res) => {
   if (isFirstEnable && !entry.emailSent) {
     try {
       await sendMail({
-        to: "Pradeep.Rajangam@insightz.tech",
-        subject: "🤝 New Partner API Integrated",
+        to: process.env.EMAIL_FROM,
+        subject: "🤝 New Partner Registered for InsightzMDR",
         html: newPartnerSalesTemplate({
           partnerTenantId: tenant_id,
           partnerName: tenantName,

@@ -770,7 +770,7 @@ Swift Code: UOVBSGSG<br/>
         endDate: end,
         generated: true,
         category: "mdr",
-        type: "invoice",
+        type: downloadMode,
         mailto: contact?.email ?? null,
         mailcc: cc.length ? cc : null,
         terms: 30,
@@ -849,6 +849,17 @@ Swift Code: UOVBSGSG<br/>
         seats: devicesCount,
       },
     });
+    const disableAutoInvoiceIfExists = async (customerId) => {
+      await prisma.autoInvoice.updateMany({
+        where: {
+          customerId,
+        },
+        data: {
+          automail: false,
+          scheduleTiming: null,
+        },
+      });
+    };
 
 
 
@@ -860,7 +871,7 @@ Swift Code: UOVBSGSG<br/>
 
     if (downloadMode === "manual") {
       console.log("⬇️ [7] Manual download selected");
-
+      await disableAutoInvoiceIfExists(Number(customerId));
       res.set({
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename=${fileName}`,
@@ -877,7 +888,7 @@ Swift Code: UOVBSGSG<br/>
       console.log("📄 CC:", cc);
 
 
-const emailBody = `
+      const emailBody = `
 <p>Hello,</p>
 
 <p>
@@ -955,7 +966,7 @@ Best regards,<br/>
 
     if (downloadMode === "forward") {
       console.log("📨 [7] Forward mode");
-
+      await disableAutoInvoiceIfExists(Number(customerId));
       if (!to) {
         console.warn("⚠️ Missing `to` email");
         return res.status(400).json({ error: "`to` email required" });
@@ -1041,6 +1052,7 @@ const list = async (req, res) => {
           terms: true,
           paymentStatus: true,
           invoicePath: true,
+          type: true,
         },
       }),
     ]);

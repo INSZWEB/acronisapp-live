@@ -8,10 +8,10 @@ const { createTransporter } = require('../config/mailConfig')
 
 const transporter = createTransporter();
 
-const sendMail = async ({ subject, body, attachments }) => {
+const sendMail = async ({ to,subject, body, attachments }) => {
   const mailOptions = {
     from: process.env.EMAIL_FROM,
-    to: "Pradeep.Rajangam@insightz.tech",
+    to,
     subject,
     html: body,
     attachments,
@@ -131,7 +131,7 @@ exports.sendMailData = async (req, res) => {
 
     const partner = await prisma.partner.findUnique({
       where: { id: parsedPartnerId },
-      select: { tenantName: true },
+      select: { tenantName: true, contactEmail:true },
     });
 
     if (!partner) {
@@ -231,6 +231,7 @@ exports.sendMailData = async (req, res) => {
     }
 
     await sendMail({
+      to:partner.contactEmail,
       subject: "Welcome to Insightz MDR Partnership",
       body: emailBody,
       attachments: attachments
