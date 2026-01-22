@@ -8,7 +8,7 @@ const path = require("path");
 
 const transporter = createTransporter();
 
-const sendMail = async ({ to,subject, body, attachments }) => {
+const sendMail = async ({ to, subject, body, attachments }) => {
   const mailOptions = {
     from: process.env.EMAIL_FROM,
     to,
@@ -56,7 +56,7 @@ exports.sendMailData = async (req, res) => {
       where: { id: parsedCustomerId },
       select: {
         acronisCustomerTenantName: true,
-        partnerTenantId:true,
+        partnerTenantId: true,
       },
     });
 
@@ -68,7 +68,7 @@ exports.sendMailData = async (req, res) => {
       },
     });
 
-    console.log("parnter",parnter)
+    console.log("parnter", parnter)
 
     if (!customer) {
       return res.status(404).json({ message: "Customer not found" });
@@ -104,8 +104,8 @@ exports.sendMailData = async (req, res) => {
       },
     });
 
- // 📩 Email Body
-const emailBody = `
+    // 📩 Email Body
+    const emailBody = `
   <p>Dear ${customerName},</p>
 
   <p>
@@ -147,14 +147,14 @@ const emailBody = `
 
     if (pptFile?.relativePath) {
       attachments.push({
-        filename:"Customer_Kickoff_Slides.pptx",
+        filename: "Customer_Kickoff_Slides.pptx",
         path: resolveUploadPath(pptFile.relativePath),
       });
     }
 
 
     await sendMail({
-      to:parnter.contactEmail,
+      to: parnter.contactEmail,
       subject: "Welcome to Insightz MDR Customer Onboarding",
       body: emailBody,
       attachments: attachments
@@ -179,35 +179,128 @@ const emailBody = `
 
 
 
+// exports.completeKickoff = async (req, res) => {
+//   try {
+//     const { customerId,providesApis,providesContact } = req.body;
+
+//     // if (!req.file) {
+//     //   return res.status(400).json({
+//     //     message: "NDA document is required",
+//     //   });
+//     // }
+
+//     // const docxPath = `/uploads/nda/${req.file.filename}`;
+
+//     await prisma.customerKickoff.updateMany({
+//       where: { customerId: parseInt(customerId) },
+//       data: {
+//         status: "COMPLETED",
+//         // docxPath: docxPath,
+//         providesApis: Boolean(providesApis === true || providesApis === "true"),
+//         providesContact: Boolean(providesContact === true || providesContact === "true"),
+//       },
+//     });
+
+//     res.json({
+//       message: "Kickoff completed",
+//       status: "COMPLETED",
+//       //docxPath,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+
 exports.completeKickoff = async (req, res) => {
+  console.log("📌 [Kickoff] completeKickoff API called");
+
   try {
-    const { customerId,providesApis,providesContact } = req.body;
+    // 🔹 STEP 1: Read & parse request body
+    console.log("📥 [Step 1] Request body:", req.body);
 
-    // if (!req.file) {
-    //   return res.status(400).json({
-    //     message: "NDA document is required",
-    //   });
-    // }
+    const { customerId, providesApis, providesContact } = req.body;
+    const parsedCustomerId = parseInt(customerId);
 
-    // const docxPath = `/uploads/nda/${req.file.filename}`;
+    console.log("🔢 [Step 1.1] Parsed customerId:", parsedCustomerId);
 
-    await prisma.customerKickoff.updateMany({
-      where: { customerId: parseInt(customerId) },
-      data: {
-        status: "COMPLETED",
-        // docxPath: docxPath,
-        providesApis: Boolean(providesApis === true || providesApis === "true"),
-        providesContact: Boolean(providesContact === true || providesContact === "true"),
-      },
+    if (isNaN(parsedCustomerId)) {
+      console.warn("⚠️ [Validation] Invalid customerId");
+      return res.status(400).json({ message: "Invalid customerId" });
+    }
+
+    // 🔹 STEP 2: Fetch customer tenant ID
+    console.log("🔍 [Step 2] Fetching customer tenant ID");
+
+    const data = await prisma.customer.findFirst({
+      where: { id: parsedCustomerId },
+      select: { acronisCustomerTenantId: true },
     });
+
+    if (!data) {
+      console.warn("❌ [Step 2] Customer not found");
+      return res.status(404).json({ message: "Customer not found" });
+    }
+
+    console.log(
+      "✅ [Step 2.1] Found tenant ID:",
+      data.acronisCustomerTenantId
+    );
+
+    // 🔹 STEP 3: Start DB transaction
+    console.log("🔐 [Step 3] Starting database transaction");
+
+    await prisma.$transaction(async (tx) => {
+
+      // STEP 3.1: Update customerKickoff
+      console.log("📝 [Step 3.1] Updating customerKickoff status");
+
+      const kickoffResult = await tx.customerKickoff.updateMany({
+        where: { customerId: parsedCustomerId },
+        data: {
+          status: "COMPLETED",
+          providesApis: providesApis === true || providesApis === "true",
+          providesContact: providesContact === true || providesContact === "true",
+        },
+      });
+
+      console.log(
+        `✅ [Step 3.1] customerKickoff updated (${kickoffResult.count} rows)`
+      );
+
+      // STEP 3.2: Update credential table
+      console.log("📝 [Step 3.2] Updating credential.isKickoff");
+
+      const credentialResult = await tx.credential.updateMany({
+        where: {
+          customerTenantId: data.acronisCustomerTenantId,
+        },
+        data: {
+          isKickoff: true,
+        },
+      });
+
+      console.log(
+        `✅ [Step 3.2] credential updated (${credentialResult.count} rows)`
+      );
+    });
+
+    // 🔹 STEP 4: Transaction success
+    console.log("🎉 [Step 4] Kickoff process completed successfully");
 
     res.json({
       message: "Kickoff completed",
       status: "COMPLETED",
-      //docxPath,
     });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
+    // ❌ STEP 5: Error handling
+    console.error("🔥 [Kickoff Error]", error);
+
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
   }
 };

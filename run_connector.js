@@ -35,9 +35,22 @@ async function getFetchInterval() {
 // 1. LOAD CREDENTIALS FROM DATABASE
 // --------------------------------------------
 
+// async function getCredentials() {
+//   return prisma.credential.findMany({
+//     where: { active: true }
+//   });
+// }
+
+// --------------------------------------------
+// 1. LOAD CREDENTIALS FROM DATABASE
+// --------------------------------------------
+
 async function getCredentials() {
   return prisma.credential.findMany({
-    where: { active: true }
+    where: {
+      active: true,
+      isKickoff: true,
+    },
   });
 }
 

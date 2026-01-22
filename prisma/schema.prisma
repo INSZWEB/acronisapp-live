@@ -139,6 +139,7 @@ model Credential {
   clientSecret      String
   datacenterUrl     String
   active        Boolean  @default(true)
+  isKickoff        Boolean  @default(false)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
@@ -150,6 +151,7 @@ model ParnterCredential {
   clientSecret      String
   datacenterUrl     String
   active        Boolean  @default(true)
+  isKickoff        Boolean  @default(false)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

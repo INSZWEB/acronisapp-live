@@ -8,7 +8,7 @@ const { createTransporter } = require('../config/mailConfig')
 
 const transporter = createTransporter();
 
-const sendMail = async ({ to,subject, body, attachments }) => {
+const sendMail = async ({ to, subject, body, attachments }) => {
   const mailOptions = {
     from: process.env.EMAIL_FROM,
     to,
@@ -131,7 +131,7 @@ exports.sendMailData = async (req, res) => {
 
     const partner = await prisma.partner.findUnique({
       where: { id: parsedPartnerId },
-      select: { tenantName: true, contactEmail:true },
+      select: { tenantName: true, contactEmail: true },
     });
 
     if (!partner) {
@@ -211,7 +211,7 @@ exports.sendMailData = async (req, res) => {
 
     if (pptFile?.relativePath) {
       attachments.push({
-        filename:"Partner_Kickoff_Slides.pptx",
+        filename: "Partner_Kickoff_Slides.pptx",
         path: resolveUploadPath(pptFile.relativePath),
       });
     }
@@ -231,7 +231,7 @@ exports.sendMailData = async (req, res) => {
     }
 
     await sendMail({
-      to:partner.contactEmail,
+      to: partner.contactEmail,
       subject: "Welcome to Insightz MDR Partnership",
       body: emailBody,
       attachments: attachments
@@ -459,35 +459,106 @@ exports.sendMailold = async (req, res) => {
 
 
 
+// exports.completeKickoff = async (req, res) => {
+//   try {
+//     const { parnterId,providesApis } = req.body;
+
+//     if (!req.file) {
+//       return res.status(400).json({
+//         message: "NDA document is required",
+//       });
+//     }
+
+//     const docxPath = `/uploads/nda/${req.file.filename}`;
+
+//     await prisma.parnterKickoff.updateMany({
+//       where: { parnterId: parseInt(parnterId) },
+//       data: {
+//         status: "COMPLETED",
+//         docxPath: docxPath,
+//         providesApis: Boolean(providesApis === true || providesApis === "true")
+
+//       },
+//     });
+
+//     res.json({
+//       message: "Kickoff completed",
+//       status: "COMPLETED",
+//       docxPath,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+
 exports.completeKickoff = async (req, res) => {
   try {
-    const { parnterId,providesApis } = req.body;
+    const { parnterId, providesApis } = req.body;
 
+    // 🔴 Validate file upload
     if (!req.file) {
       return res.status(400).json({
         message: "NDA document is required",
       });
     }
 
+    const parsedPartnerId = parseInt(parnterId);
+    if (isNaN(parsedPartnerId)) {
+      return res.status(400).json({ message: "Invalid partnerId" });
+    }
+
     const docxPath = `/uploads/nda/${req.file.filename}`;
 
-    await prisma.parnterKickoff.updateMany({
-      where: { parnterId: parseInt(parnterId) },
-      data: {
-        status: "COMPLETED",
-        docxPath: docxPath,
-        providesApis: Boolean(providesApis === true || providesApis === "true")
-
-      },
+    // 🔹 STEP 1: Fetch partner tenantId
+    const data = await prisma.partner.findFirst({
+      where: { id: parsedPartnerId },
+      select: { tenantId: true },
     });
 
+    if (!data) {
+      console.warn("❌ Partner not found");
+      return res.status(404).json({ message: "Partner not found" });
+    }
+
+    // 🔹 STEP 2: Transaction (Kickoff + Credential)
+    await prisma.$transaction(async (tx) => {
+
+      // 2.1 Update partner kickoff
+      await tx.parnterKickoff.updateMany({
+        where: { parnterId: parsedPartnerId },
+        data: {
+          status: "COMPLETED",
+          docxPath: docxPath,
+          providesApis: providesApis === true || providesApis === "true",
+        },
+      });
+
+      // 2.2 Update partner credentials
+      const credentialResult = await tx.parnterCredential.updateMany({
+        where: {
+          partnerTenantId: data.tenantId,
+        },
+        data: {
+          isKickoff: true,
+        },
+      });
+
+      console.log(
+        `✅ Partner credentials updated (${credentialResult.count} rows)`
+      );
+    });
+
+    // 🔹 STEP 3: Response
     res.json({
       message: "Kickoff completed",
       status: "COMPLETED",
       docxPath,
     });
+
   } catch (error) {
-    console.error(error);
+    console.error("🔥 completeKickoff error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };

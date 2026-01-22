@@ -44,7 +44,7 @@ async function getFetchInterval() {
 // =========================================
 async function getCredentials() {
     return prisma.credential.findMany({
-        where: { active: true },
+        where: { active: true, isKickoff: true, },
     });
 }
 

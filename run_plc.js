@@ -31,7 +31,7 @@ async function getIntervalHours() {
    CREDENTIALS
 -------------------------------- */
 async function getCredentials() {
-  return prisma.credential.findMany({ where: { active: true } });
+  return prisma.credential.findMany({ where: { active: true,isKickoff: true, } });
 }
 
 /* --------------------------------
