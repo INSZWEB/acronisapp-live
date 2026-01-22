@@ -193,7 +193,7 @@ exports.sendMailData = async (req, res) => {
 
       <p>
         🎥 <b>Customer Self-Onboarding Video:</b><br/>
-       <a href="${process.env.NEXT_PUBLIC_BASE_URL_FRONTEND}Onboarding">
+       <a href="${process.env.NEXT_PUBLIC_VIDEO_URL_FRONTEND}onboarding">
           Watch the onboarding video
         </a>
       </p>
