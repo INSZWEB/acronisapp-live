@@ -272,17 +272,15 @@ async function main() {
                     continue;
                 }
 
-                for (const incident of incidents) {
+                for (const incident of incidents) { // <-- loop over incidents
                     if (!incident.resource_id) continue;
 
                     // ---- INCIDENT EXISTS CHECK ----
-                    if (await isIncidentExists(incident.incident_id)) {
-                        console.log("⏭ Incident already exists, skipping");
-                        continue;
-                    }
+                    const existingIncident = await prisma.incidentLog.findUnique({
+                        where: { incidentId: incident.incident_id },
+                    });
 
                     let details, resource;
-
                     try {
                         details = await fetchIncidentDetails(
                             token,
@@ -302,49 +300,72 @@ async function main() {
 
                     if (!(await isAgentExists(resource.agent_id))) continue;
 
-                    // ---- INSERT INCIDENT ----
-                    const counter = await getAndIncrementExtraIdCounter();
-                    const extraId = generateExtraId(cred.customerTenantId, counter);
+                    // ---- EXTRA ID ----
+                    let extraId;
+                    if (existingIncident) {
+                        extraId = existingIncident.extraId;
+                    } else {
+                        const counter = await getAndIncrementExtraIdCounter();
+                        extraId = generateExtraId(cred.customerTenantId, counter);
+                    }
 
-                    // Convert to CEF
+                    // ---- HANDLE DETECTIONS ----
+                    const existingEventIds = (existingIncident?.rawPayload?.detections || []).map(d => d.event_id);
+                    const newDetections = (details.detections || []).filter(
+                        (d) => !existingEventIds.includes(d.event_id)
+                    );
+
+                    if (newDetections.length === 0 && existingIncident) {
+                        console.log(`⏭ No new detections for incident ${incident.incident_id}`);
+                        continue;
+                    }
+
+                    // ---- CONVERT TO CEF AND LOG NEW DETECTIONS ----
                     const cefMsg = convertToCEF(
                         incident,
-                        details,
+                        { ...details, detections: newDetections }, // only new detections
                         resource,
                         extraId,
                         cred.customerTenantId
                     );
 
-                    // Write to log file
-                    writeAlertToLog(
-                        cefMsg,
-                        incident.incident_id,
-                        cred.customerTenantId
-                    );
+                    writeAlertToLog(cefMsg, incident.incident_id, cred.customerTenantId);
 
-                    // Save to DB (WITH extraId)
-                    await prisma.incidentLog.create({
-                        data: {
+                    // ---- UPSERT INCIDENT ----
+                    await prisma.incidentLog.upsert({
+                        where: { incidentId: incident.incident_id },
+                        update: {
+                            severity: incident.severity,
+                            state: incident.state,
+                            resourceId: incident.resource_id,
+                            agentId: resource.agent_id,
+                            host: incident.host_name,
+                            receivedAt: incident.created_at ? new Date(incident.created_at) : new Date(),
+                            rawPayload: {
+                                ...details,
+                                detections: [
+                                    ...(existingIncident?.rawPayload?.detections || []),
+                                    ...newDetections
+                                ]
+                            },
+                        },
+                        create: {
                             incidentId: incident.incident_id,
-                            extraId: extraId,                 // ✅ NEW
+                            extraId: extraId,
                             customerId: incident.customer_id,
                             severity: incident.severity,
                             state: incident.state,
                             resourceId: incident.resource_id,
                             agentId: resource.agent_id,
                             host: incident.host_name,
-                            receivedAt: incident.created_at
-                                ? new Date(incident.created_at)
-                                : new Date(),
+                            receivedAt: incident.created_at ? new Date(incident.created_at) : new Date(),
                             rawPayload: details,
                         },
                     });
 
-                    console.log(`✅ Incident saved (${extraId})`);
-
-
-                    console.log("✅ New Incident added:", incident.incident_id);
+                    console.log(`✅ Incident processed with ${newDetections.length} new detections (${extraId})`);
                 }
+
 
                 console.log("✔ Customer processed successfully");
 
@@ -373,10 +394,10 @@ async function main() {
             `🚀 Acronis EDR connector running every ${interval} minutes...`
         );
 
-        // ▶ Run immediately
+        // Run immediately
         await main();
 
-        // ▶ Run on interval
+        // Run on interval
         setInterval(async () => {
             try {
                 const newInterval = await getFetchInterval();
