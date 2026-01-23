@@ -35,6 +35,8 @@ async function getToken(cred) {
 async function fetchAgents(headers, dcUrl) {
   const AGENT_URL = `${dcUrl}/api/agent_manager/v2/agents`;
   const res = await axios.get(AGENT_URL, { headers });
+
+  //console.log("res.data?.items", res.data?.items)
   return res.data?.items || [];
 }
 
@@ -45,6 +47,8 @@ async function fetchResources(headers, dcUrl) {
 }
 
 async function fetchCompletedTasks(headers, dcUrl, resourceId, startDate, endDate) {
+
+  console.log("resourceId", resourceId)
   const TASK_URL = `${dcUrl}/api/task_manager/v2/tasks`;
 
   const params = {
@@ -126,7 +130,7 @@ async function main() {
   try {
     // Static start/end dates
     const startDate = "2025-12-01T00:00:00Z";
-    const endDate = "2026-01-02T00:00:00Z";
+    const endDate = "2026-01-21T00:00:00Z";
     const monthLabel = startDate.slice(0, 7);
 
     const credentials = await getCredentials();
@@ -146,6 +150,8 @@ async function main() {
         const agents = await fetchAgents(headers, cred.datacenterUrl);
         const resources = await fetchResources(headers, cred.datacenterUrl);
 
+        //console.log("resources",resources);
+
         if (!agents.length) {
           console.log(`❌ No agents found for datacenter ${cred.datacenterUrl}`);
           continue;
@@ -155,17 +161,26 @@ async function main() {
         }
 
         const resourceMap = {};
+
         (resources || []).forEach(r => {
-          if (r?.id && r?.name) resourceMap[r.id.toLowerCase()] = r.name;
+          if (r?.id && r?.agent_id && r?.name) {
+            resourceMap[r.agent_id.toLowerCase()] = {
+              id: r.id,
+              agent_id: r.agent_id,
+              name: r.name,
+            };
+          }
         });
+
+        //console.log("resourceMap", resourceMap);
+
 
         for (const agent of agents) {
           const agentId = agent.id;
           const hostname = agent.hostname;
 
-          // Match agent hostname to resource name
           const matchedResourceEntry = Object.entries(resourceMap).find(
-            ([rId, rName]) => rName === hostname
+            ([_, resource]) => resource.agent_id === agentId
           );
 
           if (!matchedResourceEntry) {
@@ -173,21 +188,36 @@ async function main() {
             continue;
           }
 
-          const [rId, rName] = matchedResourceEntry;
-          const tasks = await fetchCompletedTasks(headers, cred.datacenterUrl, rId, startDate, endDate);
+          const [_, { id: resourceId, name }] = matchedResourceEntry;
+
+          const tasks = await fetchCompletedTasks(
+            headers,
+            cred.datacenterUrl,
+            resourceId,
+            startDate,
+            endDate
+          );
 
           if (!tasks.length) {
             console.log(`⚠️ No completed tasks found for device ${hostname}`);
             continue;
           }
 
-          const report = buildMonthlyReport(hostname, agentId, rId, tasks, monthLabel);
+          const report = buildMonthlyReport(
+            hostname,
+            agentId,
+            resourceId,
+            tasks,
+            monthLabel
+          );
 
           console.log("\n================ MONTHLY REPORT ================");
           for (const [k, v] of Object.entries(report)) {
             console.log(`${k} : ${v}`);
           }
         }
+
+
       } catch (err) {
         console.error(`❌ Error processing datacenter ${cred.datacenterUrl}:`, err.message || err);
       }

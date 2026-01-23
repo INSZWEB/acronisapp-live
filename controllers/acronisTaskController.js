@@ -159,15 +159,35 @@ exports.task = async (req, res) => {
       const agents = await fetchAgents(headers, cred.datacenterUrl);
       const resources = await fetchResources(headers, cred.datacenterUrl);
 
-      const resourceMap = Object.fromEntries(
-        resources.map((r) => [r.name, r.id])
-      );
+      const resourceMap = {};
+
+      (resources || []).forEach(r => {
+        if (r?.id && r?.agent_id && r?.name) {
+          resourceMap[r.agent_id.toLowerCase()] = {
+            id: r.id,
+            agent_id: r.agent_id,
+            name: r.name,
+          };
+        }
+      });
 
       // Convert device list to a Set for faster lookup
       const deviceAgentIds = new Set(device.map(d => d.agentId));
 
       for (const agent of agents) {
-        const resourceId = resourceMap[agent.hostname];
+        const agentId = agent.id;
+        const hostname = agent.hostname;
+
+        const matchedResourceEntry = Object.entries(resourceMap).find(
+          ([_, resource]) => resource.agent_id === agentId
+        );
+
+        if (!matchedResourceEntry) {
+          console.log(`⚠️ No matching resource found for agent ${hostname}`);
+          continue;
+        }
+
+        const [_, { id: resourceId, name }] = matchedResourceEntry;
         if (!resourceId) continue;
 
         const tasks = await fetchCompletedTasks(

@@ -35,92 +35,6 @@ const contentHeightMm =
 const contentWidthPx = Math.round(contentWidthMm * pxPerMm);
 const contentHeightPx = Math.round(contentHeightMm * pxPerMm);
 
-/* ===============================
-   Image slicing helper
-=================================*/
-async function sliceImageToPageSlices(imageSource, bottomCropPx = 0) {
-  if (!imageSource) return [];
-
-  const imageBottomGapPx = 24; // footer-safe gap
-
-  let buffer;
-  if (imageSource.startsWith("data:")) {
-    buffer = Buffer.from(imageSource.split(",")[1], "base64");
-  } else if (fs.existsSync(imageSource)) {
-    buffer = fs.readFileSync(imageSource);
-  } else {
-    return [];
-  }
-
-  const meta = await sharp(buffer).metadata();
-  if (!meta.width || !meta.height) return [];
-
-  // 🛑 SAFETY: prevent negative crop
-  const safeBottomCrop = Math.min(bottomCropPx, meta.height - 1);
-  const cropHeight = meta.height - safeBottomCrop;
-
-  let workingBuffer = buffer;
-
-  if (safeBottomCrop > 0 && cropHeight > 1) {
-    workingBuffer = await sharp(buffer)
-      .extract({
-        left: 0,
-        top: 0,
-        width: meta.width,
-        height: cropHeight,
-      })
-      .toBuffer();
-  }
-
-  // Resize to content width
-  const scale = contentWidthPx / meta.width;
-  const resizedHeight = Math.round(cropHeight * scale);
-
-  const resized = await sharp(workingBuffer)
-    .resize({ width: contentWidthPx })
-    .png()
-    .toBuffer();
-
-  const resizedMeta = await sharp(resized).metadata();
-  if (!resizedMeta.height) return [];
-
-  const usableHeight = Math.max(1, contentHeightPx - imageBottomGapPx);
-
-  // Single page
-  if (resizedMeta.height <= usableHeight) {
-    return [`data:image/png;base64,${resized.toString("base64")}`];
-  }
-
-  // Multi-page slicing
-  const slices = [];
-  let offset = 0;
-
-  while (offset < resizedMeta.height) {
-    const sliceHeight = Math.min(
-      usableHeight,
-      resizedMeta.height - offset
-    );
-
-    // 🛑 SAFETY CHECK
-    if (sliceHeight <= 0) break;
-
-    const chunk = await sharp(resized)
-      .extract({
-        left: 0,
-        top: offset,
-        width: contentWidthPx,
-        height: sliceHeight,
-      })
-      .png()
-      .toBuffer();
-
-    slices.push(`data:image/png;base64,${chunk.toString("base64")}`);
-
-    offset += sliceHeight;
-  }
-
-  return slices;
-}
 
 function policyNameFromType(type) {
   if (!type) return "-"; // Return "-" if type is empty or null
@@ -606,9 +520,6 @@ router.post("/generate", async (req, res) => {
       return str;
     }
 
-    const chartSlices = await sliceImageToPageSlices(chartImage, 80); // crop 80px footer from chart screenshot
-
-    const patchSlices = await sliceImageToPageSlices(patchImage, 80);
 
     const records = generateRecords(150, "Device");
     const tableChunks = chunkArray(records, 25); // 25 rows per page

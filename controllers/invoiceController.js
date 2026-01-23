@@ -49,22 +49,22 @@ const generateCustomerReport = async (req, res) => {
     /* ---------------- DATE RANGE ---------------- */
     let start, end;
 
-    // AUTO MODE → calculate date by reportType
+    // AUTO MODE → calculate date by reportType (FUTURE)
     if (downloadMode === "auto") {
-      end = new Date(); // current date
-      start = new Date(end); // clone
+      start = new Date(); // current date
+      end = new Date(start); // clone
 
       switch (reportType) {
         case "1month":
-          start.setMonth(end.getMonth() - 1);
+          end.setMonth(start.getMonth() + 1);
           break;
 
         case "3month":
-          start.setMonth(end.getMonth() - 3);
+          end.setMonth(start.getMonth() + 3);
           break;
 
         case "1year":
-          start.setFullYear(end.getFullYear() - 1);
+          end.setFullYear(start.getFullYear() + 1);
           break;
 
         default:
