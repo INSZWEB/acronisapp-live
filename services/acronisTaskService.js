@@ -52,8 +52,9 @@ async function fetchResources(headers, dcUrl) {
   const res = await axios.get(url, {
     headers,
     httpsAgent,
-    params: { type: "machine" },
+    params: { type: "resource.machine",include_attributes: true, },
   });
+  
   return res.data.items || [];
 }
 

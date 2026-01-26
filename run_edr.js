@@ -10,9 +10,21 @@ const LOCAL_UPLOADS = path.join(__dirname, "uploads");
 // =========================================
 // UTILS
 // =========================================
+// function getLast7DaysRange() {
+//     const end = new Date();
+//     const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+//     return {
+//         from: start.toISOString(),
+//         to: end.toISOString(),
+//     };
+// }
+
 function getLast7DaysRange() {
-    const end = new Date();
-    const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const year = new Date().getFullYear();
+
+    const start = new Date(year, 0, 1, 0, 0, 0, 0);   // Jan 1, 00:00:00
+    const end = new Date(year, 1, 0, 23, 59, 59, 999); // Jan 31, 23:59:59
 
     return {
         from: start.toISOString(),
@@ -22,6 +34,7 @@ function getLast7DaysRange() {
 
 // --------------------------------------------
 // GET INTERVAL FROM SETTINGS TABLE
+
 // --------------------------------------------
 async function getFetchInterval() {
     try {

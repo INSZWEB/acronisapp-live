@@ -12,7 +12,8 @@ const prisma = new PrismaClient();
 /* ==============================
    REPORT BUILDER
 ================================ */
-function buildMonthlyReport(device, agentId, resourceId, tasks, month) {
+function buildMonthlyReport(device, agentId, resourceId, tasks, month, resource,) {
+  console.log("resource", resource)
   const scanTypes = {
     WinScan: 0,
     TpScan: 0,
@@ -68,6 +69,7 @@ function buildMonthlyReport(device, agentId, resourceId, tasks, month) {
     scanTypes,
     totalVulns,
     avgVulns,
+    deviceDetails:resource.attributes,
     maxVulns,
     patchScanRuns,
     uniqueMissingPatches: [...uniquePatches],
@@ -133,7 +135,7 @@ exports.task = async (req, res) => {
       select: { agentId: true },
     });
 
-    console.log("device", device)
+    //console.log("device", device)
     /* ---------- Credentials ---------- */
     const credentials = await prisma.credential.findMany({
       where: {
@@ -159,17 +161,16 @@ exports.task = async (req, res) => {
       const agents = await fetchAgents(headers, cred.datacenterUrl);
       const resources = await fetchResources(headers, cred.datacenterUrl);
 
+      console.log("resources", resources)
+
       const resourceMap = {};
 
       (resources || []).forEach(r => {
-        if (r?.id && r?.agent_id && r?.name) {
-          resourceMap[r.agent_id.toLowerCase()] = {
-            id: r.id,
-            agent_id: r.agent_id,
-            name: r.name,
-          };
+        if (r?.id && r?.agent_id) {
+          resourceMap[r.agent_id.toLowerCase()] = r; // 👈 full resource
         }
       });
+
 
       // Convert device list to a Set for faster lookup
       const deviceAgentIds = new Set(device.map(d => d.agentId));
@@ -178,17 +179,14 @@ exports.task = async (req, res) => {
         const agentId = agent.id;
         const hostname = agent.hostname;
 
-        const matchedResourceEntry = Object.entries(resourceMap).find(
-          ([_, resource]) => resource.agent_id === agentId
-        );
+        const resource = resourceMap[agentId.toLowerCase()];
 
-        if (!matchedResourceEntry) {
+        if (!resource) {
           console.log(`⚠️ No matching resource found for agent ${hostname}`);
           continue;
         }
 
-        const [_, { id: resourceId, name }] = matchedResourceEntry;
-        if (!resourceId) continue;
+        const resourceId = resource.id;
 
         const tasks = await fetchCompletedTasks(
           headers,
@@ -200,14 +198,11 @@ exports.task = async (req, res) => {
 
         if (!tasks.length) continue;
 
-        // Filter tasks to only include those executed by devices in our list
         const filteredTasks = tasks.filter(task =>
           task.executor && deviceAgentIds.has(task.executor.id)
         );
 
-        if (!filteredTasks.length) continue; // skip if no tasks match
-
-        //console.log("filteredTasks", filteredTasks);
+        if (!filteredTasks.length) continue;
 
         reports.push(
           buildMonthlyReport(
@@ -215,7 +210,8 @@ exports.task = async (req, res) => {
             agent.id,
             resourceId,
             filteredTasks,
-            month
+            month,
+            resource
           )
         );
       }

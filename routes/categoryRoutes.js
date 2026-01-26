@@ -12,5 +12,4 @@ router.get('/resource',apiMiddleware, categoryController.resource);
 
 
 
-
 module.exports = router;

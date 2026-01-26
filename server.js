@@ -34,6 +34,8 @@ const ParnterKickoffRoutes = require("./routes/ParnterKickoffRoutes.js");
 const incidentsRoutes = require("./routes/incidentsRoutes.js");
 const autoInvoiceRoutes= require("./routes/autoInvoiceRoutes.js")
 
+require("./scheduler/autoInvoiceScheduler");
+
 //app.use(express.json());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -89,6 +91,7 @@ app.get("/test", async (req, res) => {
     });
   }
 });
+
 
 app.use(cookieParser()); // Add this to parse cookies
 app.use('/auth', authRoutes);

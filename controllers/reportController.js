@@ -305,9 +305,9 @@ const generateCustomerReport = async (req, res) => {
     }
 
     .title h2 {
-      font-size: 44px;
+      font-size: 32px;
       font-weight: 700;
-      margin-bottom: 12px;
+      margin: 12px;
     }
 
     .title .sub {

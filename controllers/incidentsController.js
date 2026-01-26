@@ -34,6 +34,8 @@ const getToken = async (clientId, clientSecret, datacenterUrl) => {
     }
 }
 
+
+
 const incidentsController = {
     listall: async (req, res) => {
         try {
@@ -153,6 +155,7 @@ const incidentsController = {
                     verdict: payload.verdict || null,
                     mitigation_state: payload.mitigation_state || null,
                     detections: (payload.detections || []).map(d => ({
+                        eventId: d.event_id,
                         engine: d.engine,
                         description: d.description,
                         verdict: d.verdict,
@@ -175,7 +178,7 @@ const incidentsController = {
 
         try {
             const { id } = req.params;
-            const { investigationState } = req.body;
+            const { investigationState, comment, priority } = req.body;
 
             console.log("1️⃣ Validating request params:", { id, investigationState });
 
@@ -247,7 +250,7 @@ const incidentsController = {
             const BASE_URL = `${datacenterUrl}/api/mdr/v1`;
             await axios.post(
                 `${BASE_URL}/incidents/${incident.incidentId}/investigation_state`,
-                { state: investigationState },
+                { state: investigationState, comment, priority },
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -265,7 +268,7 @@ const incidentsController = {
 
             await prisma.incidentLog.update({
                 where: { id: parseInt(id) },
-                data: { state: investigationState },
+                data: { state: investigationState, },
             });
 
             console.log("✅ Local DB updated successfully");
@@ -283,6 +286,281 @@ const incidentsController = {
             return res.status(500).json({ error: "Internal Server Error" });
         }
     },
+    action: async (req, res) => {
+        try {
+            const { incidentId, eventId, customerId } = req.query;
+
+            if (!incidentId || !customerId) {
+                return res.status(400).json({ error: "Missing required parameters" });
+            }
+
+            const getCredential = await prisma.credential.findFirst({
+                where: { customerTenantId: customerId },
+                select: {
+                    clientId: true,
+                    clientSecret: true,
+                    datacenterUrl: true,
+                },
+            });
+
+            if (!getCredential) {
+                return res.status(404).json({ error: "Credentials not found" });
+            }
+
+            // ---------- AUTH ----------
+            const tokenRes = await axios.post(
+                `${getCredential.datacenterUrl}/api/2/idp/token`,
+                new URLSearchParams({ grant_type: "client_credentials" }),
+                {
+                    auth: {
+                        username: getCredential.clientId,
+                        password: getCredential.clientSecret,
+                    },
+                }
+            );
+
+            const token = tokenRes.data.access_token;
+
+            // ---------- FETCH INCIDENT DETAILS ----------
+            const detailsRes = await axios.get(
+                `${getCredential.datacenterUrl}/api/mdr/v1/incidents/${incidentId}`,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                    params: { customer_id: customerId },
+                }
+            );
+
+            const details = detailsRes.data;
+
+            const responseActions = (details.response_actions || []).filter(
+                a => a.display_name && a.action && a.uri
+            );
+
+            // ✅ ALWAYS return JSON
+            return res.status(200).json(responseActions);
+
+        } catch (error) {
+            console.error("Incident action error:", error.response?.data || error.message);
+            return res.status(500).json({ error: "Internal Server Error" });
+        }
+    },
+//     executeaction: async (req, res) => {
+//     console.log("▶️ Execute Action API called");
+
+//     try {
+//         // =============================
+//         // 1️⃣ READ REQUEST BODY
+//         // =============================
+//         const { uri, action, customerId, incidentId } = req.body;
+//         console.log("📥 Request body:", { uri, action, customerId, incidentId });
+
+//         // =============================
+//         // 2️⃣ FETCH CREDENTIALS
+//         // =============================
+//         console.log("🔐 Fetching credentials for customer:", customerId);
+
+//         const credential = await prisma.credential.findFirst({
+//             where: { customerTenantId: customerId },
+//             select: {
+//                 clientId: true,
+//                 clientSecret: true,
+//                 datacenterUrl: true,
+//             },
+//         });
+
+//         if (!credential) {
+//             console.error("❌ Credentials not found for customer:", customerId);
+//             return res.status(404).json({ error: "Credentials not found" });
+//         }
+
+//         console.log("✅ Credentials found:", {
+//             clientId: credential.clientId,
+//             datacenterUrl: credential.datacenterUrl,
+//         });
+
+//         // =============================
+//         // 3️⃣ AUTHENTICATION
+//         // =============================
+//         console.log("🔑 Requesting access token...");
+
+//         const tokenRes = await axios.post(
+//             `${credential.datacenterUrl}/api/2/idp/token`,
+//             new URLSearchParams({ grant_type: "client_credentials" }),
+//             {
+//                 auth: {
+//                     username: credential.clientId,
+//                     password: credential.clientSecret,
+//                 },
+//             }
+//         );
+
+//         const token = tokenRes.data.access_token;
+//         console.log("✅ Access token received");
+
+//         // =============================
+//         // 4️⃣ EXECUTE RESPONSE ACTION
+//         // =============================
+//         console.log("⚡ Executing response action:", action);
+//         console.log("➡️ Action URI:", uri);
+
+//         const idempotencyKey = uuidv4();
+//         console.log("🆔 Idempotency-Key:", idempotencyKey);
+
+//         const actionRes = await axios.post(uri, null, {
+//             headers: {
+//                 Authorization: `Bearer ${token}`,
+//                 "Idempotency-Key": idempotencyKey,
+//             },
+//             params: {
+//                 customer_id: customerId,
+//                 comment: `Triggered from UI (${action})`,
+//             },
+//         });
+
+//         const activityId = actionRes.data.activity_id;
+//         console.log("✅ Action triggered successfully");
+//         console.log("📌 Activity ID:", activityId);
+
+//         // =============================
+//         // 5️⃣ POLL ACTION STATUS
+//         // =============================
+//         let status = "PENDING";
+//         let attempts = 0;
+
+//         console.log("🔄 Polling action status...");
+
+//         while (!["SUCCEEDED", "FAILED"].includes(status) && attempts < 10) {
+//             attempts++;
+//             console.log(`⏳ Poll attempt ${attempts}/10`);
+
+//             await new Promise((r) => setTimeout(r, 5000));
+
+//             const pollRes = await axios.get(
+//                 `${credential.datacenterUrl}/api/mdr/v1/incidents/${incidentId}/response_action`,
+//                 {
+//                     headers: { Authorization: `Bearer ${token}` },
+//                     params: {
+//                         customer_id: customerId,
+//                         activity_id: activityId,
+//                     },
+//                 }
+//             );
+
+//             status = pollRes.data.status;
+//             console.log("📊 Current status:", status);
+//         }
+
+//         console.log("🏁 Final action status:", status);
+
+//         // =============================
+//         // 6️⃣ RESPONSE
+//         // =============================
+//         return res.status(200).json({
+//             success: true,
+//             action,
+//             activityId,
+//             status,
+//         });
+
+//     } catch (error) {
+//         console.error("🔥 Execute action error:");
+//         console.error(error.response?.data || error.message);
+
+//         return res.status(500).json({ error: "Internal Server Error" });
+//     }
+// },
+executeaction: async (req, res) => {
+    console.log("▶️ Execute Action API called");
+
+    try {
+        const { uri, action, customerId, incidentId } = req.body;
+        console.log("📥 Request body:", { uri, action, customerId, incidentId });
+
+        const credential = await prisma.credential.findFirst({
+            where: { customerTenantId: customerId },
+            select: { clientId: true, clientSecret: true, datacenterUrl: true },
+        });
+
+        if (!credential) {
+            console.error("❌ Credentials not found for customer:", customerId);
+            return res.status(404).json({ error: "Credentials not found" });
+        }
+
+        console.log("✅ Credentials found:", {
+            clientId: credential.clientId,
+            datacenterUrl: credential.datacenterUrl,
+        });
+
+        const tokenRes = await axios.post(
+            `${credential.datacenterUrl}/api/2/idp/token`,
+            new URLSearchParams({ grant_type: "client_credentials" }),
+            {
+                auth: { username: credential.clientId, password: credential.clientSecret },
+            }
+        );
+
+        const token = tokenRes.data.access_token;
+        console.log("✅ Access token received");
+
+        const idempotencyKey = uuidv4();
+        console.log("🆔 Idempotency-Key:", idempotencyKey);
+
+        const actionRes = await axios.post(uri, null, {
+            headers: { Authorization: `Bearer ${token}`, "Idempotency-Key": idempotencyKey },
+            params: { customer_id: customerId, comment: `Triggered from UI (${action})` },
+        });
+
+        const activityId = actionRes.data.activity_id;
+        console.log("✅ Action triggered successfully");
+        console.log("📌 Activity ID:", activityId);
+
+        // Return immediately with QUEUED status
+        return res.status(200).json({
+            success: true,
+            action,
+            activityId,
+            status: "QUEUED",
+        });
+
+    } catch (error) {
+        console.error("🔥 Execute action error:", error.response?.data || error.message);
+        return res.status(500).json({ error: "Internal Server Error" });
+    }
+},
+getActionStatus: async (req, res) => {
+    try {
+        const { customerId, incidentId, activityId } = req.query;
+
+        const credential = await prisma.credential.findFirst({
+            where: { customerTenantId: customerId },
+        });
+
+        if (!credential) return res.status(404).json({ error: "Credentials not found" });
+
+        const tokenRes = await axios.post(
+            `${credential.datacenterUrl}/api/2/idp/token`,
+            new URLSearchParams({ grant_type: "client_credentials" }),
+            {
+                auth: { username: credential.clientId, password: credential.clientSecret },
+            }
+        );
+
+        const token = tokenRes.data.access_token;
+
+        const pollRes = await axios.get(
+            `${credential.datacenterUrl}/api/mdr/v1/incidents/${incidentId}/response_action`,
+            {
+                headers: { Authorization: `Bearer ${token}` },
+                params: { customer_id: customerId, activity_id: activityId },
+            }
+        );
+
+        return res.json({ success: true, status: pollRes.data.status });
+    } catch (err) {
+        console.error("🔥 Status poll error:", err.response?.data || err.message);
+        return res.status(500).json({ error: "Failed to fetch status" });
+    }
+}
 
 
 
