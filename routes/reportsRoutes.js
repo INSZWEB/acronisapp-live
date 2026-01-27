@@ -11,8 +11,6 @@ const app = express();
 app.use(bodyParser.json({ limit: "50mb" }));
 const FRONTEND_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL_FRONTEND;
 
-console.log("FRONTEND_BASE_URL",FRONTEND_BASE_URL);
-
 const UPLOAD_BASE = path.join(process.cwd(), "uploads", "reports");
 
 /* ===============================
@@ -336,7 +334,7 @@ router.post("/generate", async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    console.log("devices", devices)
+
     const policies = await prisma.policy.findMany({
       where: {
         customerTenantId: tenantId, agentId: {
@@ -346,7 +344,6 @@ router.post("/generate", async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    console.log("policies", policies)
 
     const plan = await prisma.plan.findMany({
       where: {
@@ -357,7 +354,6 @@ router.post("/generate", async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    console.log("plan", plan)
     const uniquePlans = dedupePlansByName(plan);
     const planMap = buildPlanMap(plan);
     const policyRows = buildPolicyRows(uniquePlans, policies);
@@ -571,10 +567,8 @@ router.post("/generate", async (req, res) => {
         </div>
 
         <div class="content">
-          <h1 id="section1-device">
-            2.Endpoint Security Assessment Overview
-          </h1>
-
+        ${pageIndex === 0 ? `<h1 id="section1-device">3.Endpoint Security Assessment Overview</h1>` : ""}
+         
           ${imagesHtml}
         </div>
       </div>
@@ -763,7 +757,6 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
 .title h2 {
   font-size: 44px;
   font-weight: 700;
-  margin-bottom: 12px;
 }
 
 .title .sub {
@@ -796,6 +789,9 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
   font-size: 10px;
   padding: 4px 6px;       /* tighter rows */
 }
+.report-title {
+  margin: 16px; /* adjust as needed */
+}
 
 </style>
 </head>
@@ -807,7 +803,7 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
   ${coverImg ? `<img src="${coverImg}" class="cover-img" />` : ""}
 
   <div class="title">
-    <h2>InsightzMDR SUMMARY REPORT </h2>
+    <h2 class="report-title">InsightzMDR SUMMARY REPORT </h2>
     <div class="sub">${customer.acronisCustomerTenantName ?? ""}</div>
     <div class="period">Report Period: ${periodLabel}</div>
   </div>
@@ -828,46 +824,41 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
     <h1 class="toc-title">Table of Contents</h1>
 
     <div id="toc" class="toc-list">
-      <div class="toc-item">
+
+       <div class="toc-item">
         <span class="toc-number">1</span>
         <a href="#section1">Alert Overview</a>
-        <span class="toc-dots"></span>
       </div>
-
-      <div class="toc-item">
+ <div class="toc-item">
         <span class="toc-number">2</span>
-        <a href="#section1-device">Endpoint Security Assessment Overview</a>
-        <span class="toc-dots"></span>
+        <a href="#section2">Endpoint List</a>
       </div>
 
       <div class="toc-item">
         <span class="toc-number">3</span>
-        <a href="#section2">Endpoint List</a>
-        <span class="toc-dots"></span>
+        <a href="#section1-device">Endpoint Security Assessment Overview</a>
       </div>
+
+     
 
       <div class="toc-item">
         <span class="toc-number">4</span>
         <a href="#section3">Active Plan and Policy</a>
-        <span class="toc-dots"></span>
       </div>
 
       <div class="toc-item">
         <span class="toc-number">5</span>
         <a href="#section4">Alert Summary</a>
-        <span class="toc-dots"></span>
       </div>
 
       <div class="toc-item">
         <span class="toc-number">6</span>
         <a href="#section6">EDR Incident Details</a>
-        <span class="toc-dots"></span>
       </div>
 
       <div class="toc-item">
         <span class="toc-number">7</span>
         <a href="#section7">All device patch details</a>
-        <span class="toc-dots"></span>
       </div>
     </div>
   </div>
@@ -880,7 +871,7 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
   <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
   <div class="content">
-    <h1 id="section1">1.Alert Overview</h1>
+      <h1 id="section1">1.Alert Overview</h1>
     ${chartImage ? `<img src="${chartImage}"  class="img-group"/>` : ""}
     ${summaryD ? `<img  class="img-group" src="${summaryD}" />` : ""}
     ${DImage ? `<img class="img-group" src="${DImage}" />` : ""}
@@ -888,12 +879,6 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
 </div>
       
 <div class="page-break"></div>
-
-   ${devicePagesHtml}
-
-<div class="page-break"></div>
-
-
 <!-- SECTION 2: Device Inventory -->
 ${deviceChunks.map((rows, idx) => `
 <div class="page">
@@ -901,7 +886,7 @@ ${deviceChunks.map((rows, idx) => `
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
 
   <div class="content">
-    ${idx === 0 ? `<h1 id="section2">3.Endpoint List </h1>` : ""}
+    ${idx === 0 ? `<h1 id="section2">2.Endpoint List </h1>` : ""}
 
     <table class="data-table">
       <thead>
@@ -920,6 +905,14 @@ ${deviceChunks.map((rows, idx) => `
   </div>
 </div>
 `).join("")}
+
+<div class="page-break"></div>
+
+   ${devicePagesHtml}
+
+<div class="page-break"></div>
+
+
 
 <!-- SECTION 3: Policy Configuration -->
 ${policyChunks.map((rows, idx) => `
