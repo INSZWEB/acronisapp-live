@@ -567,7 +567,7 @@ router.post("/generate", async (req, res) => {
         </div>
 
         <div class="content">
-        ${pageIndex === 0 ? `<h1 id="section1-device">3.Endpoint Security Assessment Overview</h1>` : ""}
+        ${pageIndex === 0 ? `<h5 id="section1-device">3.ENDPOINT SECURITY ASSESSMENT OVERVIEW</h5>` : ""}
          
           ${imagesHtml}
         </div>
@@ -640,7 +640,7 @@ body { margin:0; font-family: Arial, sans-serif; }
 
 .cover img, .end img { width:100%; height:100%; object-fit:cover; display:block; }
 
-h1 { margin:0 0 6mm 0; font-size:18pt; }
+h5 { margin:0 0 6mm 0; font-size:14pt; }
 h2 { margin:0 0 4mm 0; font-size:14pt; }
 
 #toc { margin:10mm 0; }
@@ -793,6 +793,10 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
   margin: 16px; /* adjust as needed */
 }
 
+a {
+  text-decoration: none;
+}
+
 </style>
 </head>
 <body>
@@ -821,44 +825,44 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
   </div>
 
   <div class="content">
-    <h1 class="toc-title">Table of Contents</h1>
+    <h5 class="toc-title">Table of Contents</h5>
 
     <div id="toc" class="toc-list">
 
        <div class="toc-item">
         <span class="toc-number">1</span>
-        <a href="#section1">Alert Overview</a>
+        <a href="#section1">ALERT OVERVIEW</a>
       </div>
  <div class="toc-item">
         <span class="toc-number">2</span>
-        <a href="#section2">Endpoint List</a>
+        <a href="#section2">ENDPOINT LIST</a>
       </div>
 
       <div class="toc-item">
         <span class="toc-number">3</span>
-        <a href="#section1-device">Endpoint Security Assessment Overview</a>
+        <a href="#section1-device">ENDPOINT SECURITY ASSESSMENT OVERVIEW</a>
       </div>
 
      
 
       <div class="toc-item">
         <span class="toc-number">4</span>
-        <a href="#section3">Active Plan and Policy</a>
+        <a href="#section3">ACTIVE PLAN AND POLICY</a>
       </div>
 
       <div class="toc-item">
         <span class="toc-number">5</span>
-        <a href="#section4">Alert Summary</a>
+        <a href="#section4">ALERT SUMMARY</a>
       </div>
 
       <div class="toc-item">
         <span class="toc-number">6</span>
-        <a href="#section6">EDR Incident Details</a>
+        <a href="#section6">EDR INCIDENT DETAILS</a>
       </div>
 
       <div class="toc-item">
         <span class="toc-number">7</span>
-        <a href="#section7">All device patch details</a>
+        <a href="#section7">ALL DEVICE PATCh DETAILS</a>
       </div>
     </div>
   </div>
@@ -871,7 +875,7 @@ h2 { margin:0 0 4mm 0; font-size:14pt; }
   <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
   <div class="content">
-      <h1 id="section1">1.Alert Overview</h1>
+      <h5 id="section1">1.ALERT OVERVIEW</h5>
     ${chartImage ? `<img src="${chartImage}"  class="img-group"/>` : ""}
     ${summaryD ? `<img  class="img-group" src="${summaryD}" />` : ""}
     ${DImage ? `<img class="img-group" src="${DImage}" />` : ""}
@@ -886,7 +890,7 @@ ${deviceChunks.map((rows, idx) => `
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
 
   <div class="content">
-    ${idx === 0 ? `<h1 id="section2">2.Endpoint List </h1>` : ""}
+    ${idx === 0 ? `<h5 id="section2">2.ENDPOINT LIST</h5>` : ""}
 
     <table class="data-table">
       <thead>
@@ -920,7 +924,7 @@ ${policyChunks.map((rows, idx) => `
   <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
   <div class="content">
-    ${idx === 0 ? `<h1 id="section3">4.Active Plan and Policy</h1>` : ""}
+    ${idx === 0 ? `<h5 id="section3">4.ACTIVE PLAN AND POLICY</h5>` : ""}
     ${policyTableHTML(rows)}
   </div>
 </div>
@@ -933,7 +937,7 @@ ${alertChunks.map((rows, idx) => `
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
 
   <div class="content">
-    ${idx === 0 ? `<h1 id="section4">5.Alert Summary</h1>` : ""}
+    ${idx === 0 ? `<h5 id="section4">5.ALERT SUMMARY</h5>` : ""}
     ${alertTableHTML(rows)}
   </div>
 </div>
@@ -946,7 +950,7 @@ ${incidentChunks.map((rows, idx) => `
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
 
   <div class="content">
-    ${idx === 0 ? `<h1 id="section6">6. EDR Incident Details</h1>` : ""}
+    ${idx === 0 ? `<h5 id="section6">6.EDR INCIDENT DETAILS</h5>` : ""}
     ${incidentTableHTML(rows)}
   </div>
 </div>
@@ -957,7 +961,7 @@ ${incidentChunks.map((rows, idx) => `
   <div class="header">${headerImg ? `<img src="${headerImg}" />` : ""}</div>
   <div class="footer">${footerImg ? `<img src="${footerImg}" />` : ""}</div>
   <div class="content">
-   <h1 id="section7">7.All device patch details</h1>
+   <h5 id="section7">7.ALL DEVICE PATCH DETAILS</h5>
     ${patchImage ? `<img src="${patchImage}"  class="img-group"/>` : ""}
   </div>
 </div>
